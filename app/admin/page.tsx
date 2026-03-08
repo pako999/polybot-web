@@ -33,6 +33,16 @@ type AdminDetailResponse = {
   backendError: { code: string; message: string } | null;
 };
 
+type BackendDiagnosticsResponse = {
+  userId: string;
+  internalBaseUrlConfigured: boolean;
+  internalApiTokenConfigured: boolean;
+  internalBaseUrlHost: string | null;
+  probeOk: boolean;
+  probeError: { code: string; message: string; upstreamStatus: number | null } | null;
+  probeStatus: Record<string, unknown> | null;
+};
+
 export default function AdminPage() {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -40,6 +50,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [stopLoading, setStopLoading] = useState(false);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<BackendDiagnosticsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
@@ -59,6 +71,25 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadDiagnostics = useCallback(async (userId: string) => {
+    setDiagnosticsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/admin/bot-backend/diagnostics?userId=${encodeURIComponent(userId)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json()) as BackendDiagnosticsResponse & { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load backend diagnostics.");
+      }
+      setDiagnostics(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load backend diagnostics.");
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  }, []);
+
   const loadDetail = useCallback(async (userId: string) => {
     setDetailLoading(true);
     try {
@@ -71,12 +102,13 @@ export default function AdminPage() {
       }
       setDetail(payload);
       setSelectedUserId(userId);
+      await loadDiagnostics(userId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load user details.");
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [loadDiagnostics]);
 
   const handleAdminStop = useCallback(async () => {
     if (!selectedUserId) return;
@@ -199,6 +231,15 @@ export default function AdminPage() {
                     <p className="text-slate-500 mb-1">Backend status</p>
                     <pre className="text-xs text-slate-300 whitespace-pre-wrap">
                       {JSON.stringify(detail.backendStatus || detail.backendError, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <p className="text-slate-500">Backend diagnostics</p>
+                      {diagnosticsLoading ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" /> : null}
+                    </div>
+                    <pre className="text-xs text-slate-300 whitespace-pre-wrap">
+                      {JSON.stringify(diagnostics, null, 2)}
                     </pre>
                   </div>
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3">

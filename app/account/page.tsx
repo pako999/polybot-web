@@ -55,6 +55,23 @@ function normalizeError(error: unknown) {
   return "Unexpected error. Please try again.";
 }
 
+function describeBotBackendError(code?: string | null, fallback?: string | null) {
+  switch (code) {
+    case "BACKEND_TOKEN_MISMATCH":
+      return "Bot backend authentication failed. Check POLYBOT_INTERNAL_API_TOKEN on Vercel and the bot server.";
+    case "BACKEND_UNAVAILABLE":
+      return "Bot backend is unavailable right now. Check POLYBOT_INTERNAL_BASE_URL and bot server uptime.";
+    case "BACKEND_CONFIG_MISSING":
+      return "Bot backend env vars are missing. Check POLYBOT_INTERNAL_BASE_URL and POLYBOT_INTERNAL_API_TOKEN.";
+    case "BACKEND_REQUEST_FAILED":
+      return fallback || "Bot backend rejected the request.";
+    case "AUTH_REQUIRED":
+      return "Your session expired. Please sign in again.";
+    default:
+      return fallback || "Unknown bot backend error.";
+  }
+}
+
 const DEFAULT_BOT_CONFIG: BotConfig = {
   maxPositionUsdc: 100,
   maxExposureUsdc: 1000,
@@ -95,6 +112,9 @@ export default function AccountPage() {
   const [liveModeEligible, setLiveModeEligible] = useState(false);
   const [statusStreamConnected, setStatusStreamConnected] = useState(false);
   const lifecycleState = botStatus?.lifecycleState ?? (botRunning ? "running" : "stopped");
+  const statusErrorMessage = botStatus?.lastError
+    ? describeBotBackendError(botStatus.errorCode, botStatus.lastError)
+    : null;
 
   const connected = Boolean(walletAddress);
   const hasWalletProvider = walletOptions.length > 0;
@@ -485,10 +505,17 @@ export default function AccountPage() {
                     {typeof botStatus?.totalPnl === "number" ? `$${botStatus.totalPnl.toFixed(2)}` : "n/a"}
                   </span>
                 </p>
-                {botStatus?.lastError ? (
-                  <p className="text-red-300 mt-2">Last error: {botStatus.lastError}</p>
+                {statusErrorMessage ? (
+                  <p className="text-red-300 mt-2">Last error: {statusErrorMessage}</p>
                 ) : null}
               </div>
+
+              {botStatus?.errorCode === "BACKEND_TOKEN_MISMATCH" ? (
+                <div className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  Bot backend token mismatch. The app is reaching the bot service, but the bot service is rejecting the
+                  server token. Check `POLYBOT_INTERNAL_API_TOKEN` on Vercel and on the bot backend.
+                </div>
+              ) : null}
 
               <div className="mt-5">
                 <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Wallet Provider</p>
