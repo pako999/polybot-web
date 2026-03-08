@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -24,7 +24,42 @@ import {
 } from "lucide-react";
 import { UserButton, useUser } from "@clerk/nextjs";
 
-// Mock data
+// Bot API URL — set in Vercel env vars, points to your VPS
+const BOT_API = process.env.NEXT_PUBLIC_BOT_API_URL || "http://localhost:8899";
+
+// Hook: fetch live data from bot API running on VPS
+function useBotData() {
+  const [status, setStatus] = useState<any>(null);
+  const [trades, setTrades] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [connected, setConnected] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [statusRes, tradesRes, statsRes] = await Promise.all([
+        fetch(`${BOT_API}/api/status`).then((r) => r.json()),
+        fetch(`${BOT_API}/api/trades`).then((r) => r.json()),
+        fetch(`${BOT_API}/api/stats`).then((r) => r.json()),
+      ]);
+      setStatus(statusRes);
+      setTrades(tradesRes.trades || []);
+      setStats(statsRes);
+      setConnected(true);
+    } catch {
+      setConnected(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000); // refresh every 5s
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  return { status, trades, stats, connected };
+}
+
+// Mock data (used as fallback when bot API is not connected)
 const portfolioData = [
   { time: "00:00", pnl: 0 },
   { time: "02:00", pnl: 12 },
@@ -152,9 +187,13 @@ const strategyStats = [
 export default function DashboardPage() {
   const [botRunning, setBotRunning] = useState(true);
   const [activeTab, setActiveTab] = useState<"positions" | "trades" | "strategies">("positions");
+  const { status, trades: liveTrades, stats: liveStats, connected } = useBotData();
 
-  const totalPnl = positions.reduce((sum, p) => sum + p.pnl, 0);
-  const totalExposure = positions.reduce((sum, p) => sum + p.size * p.entry, 0);
+  const totalPnl = status?.total_pnl ?? positions.reduce((sum, p) => sum + p.pnl, 0);
+  const totalExposure = status?.balance_usdc ?? positions.reduce((sum, p) => sum + p.size * p.entry, 0);
+  const avgLatency = status?.latency?.avg ?? 47;
+  const p95Latency = status?.latency?.p95 ?? 62;
+  const marketsTracked = status?.markets_tracked ?? 0;
 
   // SVG chart from portfolio data
   const chartWidth = 800;
@@ -277,9 +316,13 @@ export default function DashboardPage() {
               >
                 Dashboard
               </h1>
-              <div className="flex items-center gap-1.5 text-brand-400">
-                <Wifi className="w-3.5 h-3.5" />
-                <span className="text-xs font-mono">WebSocket Connected</span>
+              <div className={`flex items-center gap-1.5 ${connected ? 'text-brand-400' : 'text-red-400'}`}>
+                {connected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+                <span className="text-xs font-mono">
+                  {connected
+                    ? `Bot Connected${status?.paper_mode ? ' (PAPER)' : ' (LIVE)'}`
+                    : 'Bot Offline — using demo data'}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -300,29 +343,29 @@ export default function DashboardPage() {
             {[
               {
                 label: "Total P&L (Today)",
-                value: `+$${totalPnl.toFixed(2)}`,
-                sub: "+4.2%",
-                positive: true,
+                value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`,
+                sub: connected ? `${status?.held_tokens || 0} positions` : "+4.2%",
+                positive: totalPnl >= 0,
                 icon: TrendingUp,
               },
               {
-                label: "Total Exposure",
+                label: connected ? "USDC Balance" : "Total Exposure",
                 value: `$${totalExposure.toFixed(0)}`,
-                sub: `${positions.length} positions`,
+                sub: connected ? `${marketsTracked} markets tracked` : `${positions.length} positions`,
                 positive: true,
                 icon: DollarSign,
               },
               {
                 label: "Avg Latency",
-                value: "47ms",
-                sub: "p95: 62ms",
+                value: `${avgLatency}ms`,
+                sub: `p95: ${p95Latency}ms`,
                 positive: true,
                 icon: Clock,
               },
               {
                 label: "Win Rate",
                 value: "78%",
-                sub: "109 trades today",
+                sub: connected ? `${status?.ws_stats?.messages || 0} WS msgs` : "109 trades today",
                 positive: true,
                 icon: Target,
               },

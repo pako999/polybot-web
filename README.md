@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PolyBot SaaS — Prediction Market Trading Platform
 
-## Getting Started
+Next.js 14 SaaS website with **Clerk authentication** for selling an AI-powered Polymarket trading bot as a monthly/yearly subscription.
 
-First, run the development server:
+## Pages
+
+- `/` — Landing page (hero, features, strategies, terminal preview, CTA)
+- `/pricing` — 3-tier pricing with monthly/yearly toggle (Starter $49/Pro $149/Enterprise $499)
+- `/dashboard` — **Protected** trading dashboard (P&L chart, positions, trades, strategy stats)
+- `/login` — Clerk SignIn (email, Google, GitHub, etc.)
+- `/signup` — Clerk SignUp with free trial messaging
+
+## Auth (Clerk)
+
+Authentication is handled by [Clerk](https://clerk.com):
+
+- **`ClerkProvider`** wraps the entire app in `layout.tsx` with dark theme + green accent
+- **`middleware.ts`** protects `/dashboard` — unauthenticated users are redirected to `/login`
+- **`<SignedIn>` / `<SignedOut>`** conditionally shows nav items and auth buttons
+- **`<UserButton>`** in navbar and dashboard sidebar for account management
+- **`<SignIn>` / `<SignUp>`** components on login/signup pages, styled to match the dark theme
+
+### Clerk Setup
+
+1. Go to [dashboard.clerk.com](https://dashboard.clerk.com)
+2. Create a new application called "PolyBot"
+3. Enable sign-in methods: **Email + Password**, **Google**, **GitHub** (recommended)
+4. Copy your API keys
+5. Create `.env.local`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
+# Paste your keys:
+# NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+# CLERK_SECRET_KEY=sk_test_xxx
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Next.js 14** (App Router)
+- **TypeScript**
+- **Tailwind CSS** (custom dark theme)
+- **Clerk** (authentication)
+- **Lucide React** (icons)
+- **Vercel** deployment ready
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Quick Start
 
-## Learn More
+```bash
+npm install
+cp .env.local.example .env.local
+# Add your Clerk keys to .env.local
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy to Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Option 1: Vercel CLI
+npm i -g vercel
+vercel
+# Add env vars in Vercel dashboard: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY
 
-## Deploy on Vercel
+# Option 2: GitHub
+# Push to GitHub → Connect repo in vercel.com → Add env vars → Auto deploys
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## What to Add Next
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Stripe** — Payment processing for subscriptions (monthly/yearly)
+2. **Database** — Neon PostgreSQL for user plans, trade history
+3. **Webhooks** — Clerk webhook to sync user creation with your DB
+4. **Real API** — Connect dashboard to actual Polymarket bot backend
+5. **Email** — Resend for transactional emails (welcome, alerts, invoices)
+
+## File Structure
+
+```
+middleware.ts              Clerk auth middleware (protects /dashboard)
+.env.local.example         Environment variables template
+app/
+  layout.tsx               Root layout with ClerkProvider + dark theme
+  globals.css              Global styles + Clerk dark mode support
+  page.tsx                 Landing page
+  pricing/page.tsx         Pricing page
+  dashboard/page.tsx       Protected dashboard
+  login/[[...login]]/      Clerk SignIn (catch-all route)
+  signup/[[...signup]]/    Clerk SignUp (catch-all route)
+components/
+  Navbar.tsx               Nav with SignedIn/SignedOut/UserButton
+  Footer.tsx               Footer
+```
+
+## Design
+
+- Dark terminal-inspired aesthetic
+- Green accent (#00e676) matching Clerk's `colorPrimary`
+- Outfit font for display, JetBrains Mono for data
+- Glass-morphism cards with subtle borders
+- Clerk components fully themed to match (dark background, green buttons, custom inputs)
