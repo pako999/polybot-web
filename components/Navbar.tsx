@@ -43,13 +43,13 @@ export default function Navbar() {
           >
             Pricing
           </Link>
+          <Link
+            href="/dashboard"
+            className="text-sm text-slate-400 hover:text-white transition-colors"
+          >
+            Dashboard
+          </Link>
           <SignedIn>
-            <Link
-              href="/dashboard"
-              className="text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              Dashboard
-            </Link>
             <Link
               href="/account"
               className="text-sm text-slate-400 hover:text-white transition-colors"
@@ -123,6 +123,11 @@ export default function Navbar() {
               Account
             </Link>
           </SignedIn>
+          <SignedOut>
+            <Link href="/dashboard" className="block text-slate-300" onClick={() => setOpen(false)}>
+              Dashboard
+            </Link>
+          </SignedOut>
 
           <hr className="border-white/5" />
 
