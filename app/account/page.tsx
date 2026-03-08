@@ -7,7 +7,6 @@ import {
   clearAuthSession,
   getBotStatus,
   getCachedWalletAddress,
-  postAccountConnect,
   postAccountDisconnect,
   postBotStart,
   postBotStop,
@@ -134,11 +133,6 @@ export default function AccountPage() {
         walletAddress: selectedAccount,
         message,
         signature,
-      });
-
-      await postAccountConnect({
-        signatureType: "eip191",
-        funderAddress: selectedAccount,
       });
 
       setWalletAddress(selectedAccount);
