@@ -13,6 +13,10 @@ type StartPayload = {
     minMarketVolume?: unknown;
     minMarketLiquidity?: unknown;
     paperTrade?: unknown;
+    paperBalanceUsdc?: unknown;
+    maxPositionUsdc?: unknown;
+    maxExposureUsdc?: unknown;
+    kellyFraction?: unknown;
   };
 };
 
@@ -44,12 +48,6 @@ export async function POST(req: NextRequest) {
   }
 
   const currentState = await getAccountStateForUser(userId);
-  if (!currentState.walletAddress) {
-    return NextResponse.json(
-      { error: "Connect a wallet before starting the bot." },
-      { status: 400 }
-    );
-  }
 
   let payload: StartPayload = {};
   try {
@@ -67,10 +65,26 @@ export async function POST(req: NextRequest) {
       payload.config?.minMarketLiquidity,
       DEFAULT_START_CONFIG.min_market_liquidity
     ),
+    paper_balance_usdc: toPositiveNumber(payload.config?.paperBalanceUsdc, 1000),
+    max_position_usdc: toPositiveNumber(payload.config?.maxPositionUsdc, 100),
+    max_exposure_usdc: toPositiveNumber(payload.config?.maxExposureUsdc, 1000),
+    kelly_fraction: (() => {
+      const v = payload.config?.kellyFraction;
+      if (typeof v === "number" && v >= 0 && v <= 1) return v;
+      return 0.2;
+    })(),
   };
 
   const paperMode =
     typeof payload.config?.paperTrade === "boolean" ? payload.config.paperTrade : true;
+
+  // Require wallet for live trading; allow paper mode without wallet for demo
+  if (!paperMode && !currentState.walletAddress) {
+    return NextResponse.json(
+      { error: "Connect a wallet before starting the bot in live mode." },
+      { status: 400 }
+    );
+  }
 
   const backendResult = await startInternalBot(userId, paperMode, mappedConfig);
   if (!backendResult.ok) {

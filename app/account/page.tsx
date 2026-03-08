@@ -30,12 +30,14 @@ function normalizeError(error: unknown) {
 const DEFAULT_BOT_CONFIG: BotConfig = {
   maxPositionUsdc: 100,
   maxExposureUsdc: 1000,
+  paperBalanceUsdc: 1000,
   minArbProfit: 0.01,
   kellyFraction: 0.2,
   stopLossPct: 0.1,
   minMarketVolume: 1000,
   minMarketLiquidity: 1000,
   paperTrade: true,
+  positionSizingMode: "auto",
 };
 
 export default function AccountPage() {
@@ -51,6 +53,13 @@ export default function AccountPage() {
   const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState<WalletOption["id"] | null>(null);
+
+  // Paper mode setup
+  const [paperBalanceUsdc, setPaperBalanceUsdc] = useState(1000);
+  const [positionSizingMode, setPositionSizingMode] = useState<"auto" | "manual">("auto");
+  const [maxPositionUsdc, setMaxPositionUsdc] = useState(100);
+  const [maxExposureUsdc, setMaxExposureUsdc] = useState(1000);
+  const [kellyFraction, setKellyFraction] = useState(0.2);
 
   const connected = Boolean(walletAddress);
   const hasWalletProvider = walletOptions.length > 0;
@@ -166,7 +175,15 @@ export default function AccountPage() {
   const handleStartBot = useCallback(async () => {
     setStartLoading(true);
     try {
-      await postBotStart({ config: DEFAULT_BOT_CONFIG });
+      const config: BotConfig = {
+        ...DEFAULT_BOT_CONFIG,
+        paperBalanceUsdc,
+        maxPositionUsdc,
+        maxExposureUsdc,
+        kellyFraction,
+        positionSizingMode,
+      };
+      await postBotStart({ config });
       setBotRunning(true);
       await hydrateFromStatus();
       setNotice({
@@ -178,7 +195,14 @@ export default function AccountPage() {
     } finally {
       setStartLoading(false);
     }
-  }, [hydrateFromStatus]);
+  }, [
+    hydrateFromStatus,
+    paperBalanceUsdc,
+    maxPositionUsdc,
+    maxExposureUsdc,
+    kellyFraction,
+    positionSizingMode,
+  ]);
 
   const handleStopBot = useCallback(async () => {
     setStopLoading(true);
@@ -330,9 +354,110 @@ export default function AccountPage() {
 
               {!hasWalletProvider && (
                 <div className="mt-5 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
-                  No supported wallet provider found (MetaMask, Coinbase Wallet, Rabby, Brave, Phantom EVM).
+                  No wallet detected. You can still start the bot in Paper mode — no real funds.
                 </div>
               )}
+
+              {!connected && hasWalletProvider && (
+                <div className="mt-5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-3 text-sm text-brand-300">
+                  Paper mode: Start the bot without connecting a wallet. No real money is used.
+                </div>
+              )}
+
+              <div className="mt-6 card-glass rounded-xl p-5 border border-brand-500/20">
+                <p className="text-sm font-medium text-white mb-4">Paper mode setup</p>
+                <p className="text-slate-400 text-xs mb-4">
+                  Virtual budget and position sizing for testing. No real funds.
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 uppercase tracking-wider mb-1">
+                      Virtual budget (USDC)
+                    </label>
+                    <input
+                      type="number"
+                      value={paperBalanceUsdc}
+                      onChange={(e) => setPaperBalanceUsdc(Math.max(0, Number(e.target.value) || 0))}
+                      min={10}
+                      max={1_000_000}
+                      step={100}
+                      className="w-full max-w-[200px] rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white font-mono text-sm"
+                    />
+                    <p className="text-slate-500 text-xs mt-1">Total virtual USDC to simulate (e.g. 500, 10000)</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">
+                      Position sizing
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sizing"
+                          checked={positionSizingMode === "auto"}
+                          onChange={() => setPositionSizingMode("auto")}
+                          className="accent-brand-500"
+                        />
+                        <span className="text-sm text-slate-300">Auto (Kelly)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sizing"
+                          checked={positionSizingMode === "manual"}
+                          onChange={() => setPositionSizingMode("manual")}
+                          className="accent-brand-500"
+                        />
+                        <span className="text-sm text-slate-300">Manual per trade</span>
+                      </label>
+                    </div>
+                    {positionSizingMode === "auto" ? (
+                      <div className="mt-3">
+                        <label className="block text-xs text-slate-500 mb-1">Kelly fraction (0–1)</label>
+                        <input
+                          type="number"
+                          value={kellyFraction}
+                          onChange={(e) =>
+                            setKellyFraction(Math.min(1, Math.max(0, Number(e.target.value) || 0)))
+                          }
+                          min={0.05}
+                          max={1}
+                          step={0.05}
+                          className="w-full max-w-[120px] rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white font-mono text-sm"
+                        />
+                        <p className="text-slate-500 text-xs mt-1">Bot auto-sizes based on edge (0.2 = 20% of Kelly)</p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Max per trade (USDC)</label>
+                          <input
+                            type="number"
+                            value={maxPositionUsdc}
+                            onChange={(e) => setMaxPositionUsdc(Math.max(1, Number(e.target.value) || 0))}
+                            min={1}
+                            max={10000}
+                            step={10}
+                            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white font-mono text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Max total exposure (USDC)</label>
+                          <input
+                            type="number"
+                            value={maxExposureUsdc}
+                            onChange={(e) => setMaxExposureUsdc(Math.max(10, Number(e.target.value) || 0))}
+                            min={10}
+                            max={100000}
+                            step={100}
+                            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               {notice && (
                 <div
@@ -374,17 +499,17 @@ export default function AccountPage() {
                 <button
                   type="button"
                   onClick={handleStartBot}
-                  disabled={startLoading || !connected || botRunning}
+                  disabled={startLoading || botRunning}
                   className="btn-primary flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {startLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  Start Bot
+                  Start Bot (Paper)
                 </button>
 
                 <button
                   type="button"
                   onClick={handleStopBot}
-                  disabled={stopLoading || !connected || !botRunning}
+                  disabled={stopLoading || !botRunning}
                   className="btn-secondary flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {stopLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}

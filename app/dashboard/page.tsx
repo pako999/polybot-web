@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Clock,
   Wifi,
@@ -15,15 +14,14 @@ import {
   Pause,
   Settings,
   Bell,
-  LogOut,
   BarChart3,
   Zap,
   Shield,
   Target,
   RefreshCw,
-  ChevronDown,
 } from "lucide-react";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
+import { getBotStatus, postBotStart, postBotStop } from "@/lib/api/client";
 
 // Bot API URL — set in Vercel env vars, points to your VPS
 const BOT_API = process.env.NEXT_PUBLIC_BOT_API_URL || "http://localhost:8899";
@@ -185,10 +183,57 @@ const strategyStats = [
   { name: "News-Driven", trades: 8, winRate: 75, pnl: 67.8, color: "text-blue-400" },
 ];
 
+const PAPER_CONFIG = {
+  config: {
+    maxPositionUsdc: 100,
+    maxExposureUsdc: 1000,
+    paperBalanceUsdc: 1000,
+    minArbProfit: 0.01,
+    kellyFraction: 0.2,
+    stopLossPct: 10,
+    minMarketVolume: 1000,
+    minMarketLiquidity: 1000,
+    paperTrade: true,
+    positionSizingMode: "auto" as const,
+  },
+};
+
 export default function DashboardPage() {
-  const [botRunning, setBotRunning] = useState(true);
+  const [botRunning, setBotRunning] = useState(false);
+  const [botLoading, setBotLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"positions" | "trades" | "strategies">("positions");
   const { status, trades: liveTrades, stats: liveStats, connected, refresh } = useBotData();
+
+  const syncBotStatus = useCallback(async () => {
+    try {
+      const s = await getBotStatus();
+      setBotRunning(Boolean(s.running));
+    } catch {
+      setBotRunning(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncBotStatus();
+  }, [syncBotStatus]);
+
+  const handleToggleBot = useCallback(async () => {
+    setBotLoading(true);
+    try {
+      if (botRunning) {
+        await postBotStop();
+        setBotRunning(false);
+      } else {
+        await postBotStart(PAPER_CONFIG);
+        setBotRunning(true);
+      }
+      await syncBotStatus();
+    } catch {
+      // Keep current state on error
+    } finally {
+      setBotLoading(false);
+    }
+  }, [botRunning, syncBotStatus]);
   const pathname = usePathname();
 
   const totalPnl = status?.total_pnl ?? positions.reduce((sum, p) => sum + p.pnl, 0);
@@ -262,16 +307,17 @@ export default function DashboardPage() {
               <span className="text-xs text-slate-400 uppercase tracking-wider">
                 Bot Status
               </span>
-              <div className={`flex items-center gap-1.5 ${botRunning ? 'text-brand-400' : 'text-red-400'}`}>
-                <div className={`w-2 h-2 rounded-full ${botRunning ? 'bg-brand-400 animate-pulse' : 'bg-red-400'}`} />
+              <div className={`flex items-center gap-1.5 ${botRunning ? "text-brand-400" : "text-red-400"}`}>
+                <div className={`w-2 h-2 rounded-full ${botRunning ? "bg-brand-400 animate-pulse" : "bg-red-400"}`} />
                 <span className="text-xs font-mono">
-                  {botRunning ? "LIVE" : "STOPPED"}
+                  {botRunning ? "PAPER" : "STOPPED"}
                 </span>
               </div>
             </div>
             <button
-              onClick={() => setBotRunning(!botRunning)}
-              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+              onClick={handleToggleBot}
+              disabled={botLoading}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-60 ${
                 botRunning
                   ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
                   : "bg-brand-500/10 text-brand-400 hover:bg-brand-500/20"

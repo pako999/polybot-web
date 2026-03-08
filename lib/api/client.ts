@@ -52,12 +52,15 @@ export type AccountDisconnectResponse = {
 export type BotConfig = {
   maxPositionUsdc: number;
   maxExposureUsdc: number;
+  paperBalanceUsdc?: number;
   minArbProfit: number;
   kellyFraction: number;
   stopLossPct: number;
   minMarketVolume: number;
   minMarketLiquidity: number;
   paperTrade: boolean;
+  /** "auto" = Kelly-based sizing, "manual" = fixed max per trade */
+  positionSizingMode?: "auto" | "manual";
 };
 
 export type BotStartRequest = {

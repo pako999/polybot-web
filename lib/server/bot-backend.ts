@@ -4,6 +4,10 @@ const INTERNAL_API_TOKEN = process.env.POLYBOT_INTERNAL_API_TOKEN;
 export type InternalBotStartConfig = {
   min_market_volume: number;
   min_market_liquidity: number;
+  paper_balance_usdc?: number;
+  max_position_usdc?: number;
+  max_exposure_usdc?: number;
+  kelly_fraction?: number;
 };
 
 type InternalBotStatus = {

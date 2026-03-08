@@ -94,10 +94,7 @@ export async function disconnectWalletForUser(userId: string) {
 
 export async function setBotRunningForUser(userId: string, running: boolean) {
   const currentState = await getAccountStateForUser(userId);
-  if (!currentState.walletAddress && running) {
-    throw new Error("Connect a wallet before starting the bot.");
-  }
-
+  // Wallet required only for live trading; paper mode can run without wallet
   return updateAccountStateForUser(userId, {
     ...currentState,
     botRunning: running,
