@@ -49,14 +49,14 @@ export default function Footer() {
               Resources
             </h4>
             <div className="space-y-2">
-              <Link href="#" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                Documentation
+              <Link href="/strategies" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                Strategies
               </Link>
-              <Link href="#" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                API Reference
+              <Link href="/markets" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                Markets
               </Link>
-              <Link href="#" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                Status
+              <Link href="/risk" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                Risk Management
               </Link>
             </div>
           </div>
@@ -66,13 +66,13 @@ export default function Footer() {
               Legal
             </h4>
             <div className="space-y-2">
-              <Link href="#" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
+              <Link href="/privacy" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
                 Privacy
               </Link>
-              <Link href="#" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
+              <Link href="/terms" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
                 Terms
               </Link>
-              <Link href="#" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
+              <Link href="/risk" className="block text-sm text-slate-500 hover:text-slate-300 transition-colors">
                 Risk Disclosure
               </Link>
             </div>

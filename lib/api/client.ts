@@ -36,8 +36,8 @@ export type WalletVerifyResponse = {
 };
 
 export type AccountConnectRequest = {
-  signatureType: "eip191" | "siwe";
-  funderAddress?: string;
+  walletAddress: string;
+  chainId?: string | null;
 };
 
 export type AccountConnectResponse = {

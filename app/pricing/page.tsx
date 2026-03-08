@@ -132,12 +132,9 @@ export default function PricingPage() {
             }`}
           >
             <div
-              className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-300 ${
-                annual ? "translate-x-7.5 left-auto right-0.5" : "left-0.5"
-              }`}
+              className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-300"
               style={{
                 transform: annual ? "translateX(28px)" : "translateX(0)",
-                left: "2px",
               }}
             />
           </button>

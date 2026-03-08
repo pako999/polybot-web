@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Clock,
   Wifi,
@@ -15,36 +14,46 @@ import {
   Pause,
   Settings,
   Bell,
-  LogOut,
   BarChart3,
   Zap,
   Shield,
   Target,
   RefreshCw,
-  ChevronDown,
+  Loader2,
 } from "lucide-react";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
+import { getBotStatus, postBotStart, postBotStop, type BotStatusResponse } from "@/lib/api/client";
 
-// Bot API URL — set in Vercel env vars, points to your VPS
-const BOT_API = process.env.NEXT_PUBLIC_BOT_API_URL || "http://localhost:8899";
+type BotApiStatus = {
+  running?: boolean;
+  paper_mode?: boolean;
+  balance_usdc?: number;
+  total_pnl?: number;
+  held_tokens?: number;
+  latency?: { avg?: number; p95?: number };
+  markets_tracked?: number;
+  ws_stats?: { messages?: number };
+};
 
-// Hook: fetch live data from bot API running on VPS
 function useBotData() {
-  const [status, setStatus] = useState<any>(null);
-  const [trades, setTrades] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [status, setStatus] = useState<BotApiStatus | null>(null);
+  const [botStatus, setBotStatus] = useState<BotStatusResponse | null>(null);
   const [connected, setConnected] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [statusRes, tradesRes, statsRes] = await Promise.all([
-        fetch(`${BOT_API}/api/status`).then((r) => r.json()),
-        fetch(`${BOT_API}/api/trades`).then((r) => r.json()),
-        fetch(`${BOT_API}/api/stats`).then((r) => r.json()),
-      ]);
-      setStatus(statusRes);
-      setTrades(tradesRes.trades || []);
-      setStats(statsRes);
+      const statusRes = await getBotStatus();
+      setBotStatus(statusRes);
+      setStatus({
+        running: statusRes.running,
+        paper_mode: statusRes.paperMode,
+        balance_usdc: statusRes.balanceUsdc,
+        total_pnl: statusRes.totalPnl,
+        held_tokens: statusRes.positions,
+        latency: statusRes.latency,
+        markets_tracked: statusRes.marketsTracked,
+        ws_stats: { messages: 0 },
+      });
       setConnected(true);
     } catch {
       setConnected(false);
@@ -53,11 +62,11 @@ function useBotData() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); // refresh every 5s
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  return { status, trades, stats, connected, refresh: fetchData };
+  return { status, botStatus, connected, refresh: fetchData };
 }
 
 // Mock data (used as fallback when bot API is not connected)
@@ -186,10 +195,45 @@ const strategyStats = [
 ];
 
 export default function DashboardPage() {
-  const [botRunning, setBotRunning] = useState(true);
+  const [botRunning, setBotRunning] = useState(false);
+  const [botActionLoading, setBotActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"positions" | "trades" | "strategies">("positions");
-  const { status, trades: liveTrades, stats: liveStats, connected, refresh } = useBotData();
+  const { status, botStatus, connected, refresh } = useBotData();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (botStatus) setBotRunning(Boolean(botStatus.running));
+  }, [botStatus]);
+
+  const handleToggleBot = useCallback(async () => {
+    setBotActionLoading(true);
+    try {
+      if (botRunning) {
+        await postBotStop();
+        setBotRunning(false);
+      } else {
+        await postBotStart({
+          config: {
+            maxPositionUsdc: 100,
+            maxExposureUsdc: 1000,
+            minArbProfit: 0.01,
+            kellyFraction: 0.2,
+            stopLossPct: 0.1,
+            minMarketVolume: 1000,
+            minMarketLiquidity: 1000,
+            paperTrade: true,
+          },
+        });
+        setBotRunning(true);
+      }
+      await refresh();
+    } catch {
+      // Revert on failure
+      setBotRunning((prev) => !prev);
+    } finally {
+      setBotActionLoading(false);
+    }
+  }, [botRunning, refresh]);
 
   const totalPnl = status?.total_pnl ?? positions.reduce((sum, p) => sum + p.pnl, 0);
   const totalExposure = status?.balance_usdc ?? positions.reduce((sum, p) => sum + p.size * p.entry, 0);
@@ -270,14 +314,17 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
-              onClick={() => setBotRunning(!botRunning)}
-              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+              onClick={handleToggleBot}
+              disabled={botActionLoading}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                 botRunning
                   ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
                   : "bg-brand-500/10 text-brand-400 hover:bg-brand-500/20"
               }`}
             >
-              {botRunning ? (
+              {botActionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : botRunning ? (
                 <>
                   <Pause className="w-4 h-4" /> Stop Bot
                 </>
