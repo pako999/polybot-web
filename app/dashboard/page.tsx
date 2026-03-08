@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Activity,
   TrendingUp,
@@ -56,7 +57,7 @@ function useBotData() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  return { status, trades, stats, connected };
+  return { status, trades, stats, connected, refresh: fetchData };
 }
 
 // Mock data (used as fallback when bot API is not connected)
@@ -187,7 +188,8 @@ const strategyStats = [
 export default function DashboardPage() {
   const [botRunning, setBotRunning] = useState(true);
   const [activeTab, setActiveTab] = useState<"positions" | "trades" | "strategies">("positions");
-  const { status, trades: liveTrades, stats: liveStats, connected } = useBotData();
+  const { status, trades: liveTrades, stats: liveStats, connected, refresh } = useBotData();
+  const pathname = usePathname();
 
   const totalPnl = status?.total_pnl ?? positions.reduce((sum, p) => sum + p.pnl, 0);
   const totalExposure = status?.balance_usdc ?? positions.reduce((sum, p) => sum + p.size * p.entry, 0);
@@ -217,7 +219,7 @@ export default function DashboardPage() {
       {/* ===== SIDEBAR ===== */}
       <aside className="hidden lg:flex flex-col w-64 border-r border-white/5 bg-surface-950 p-4">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-2 mb-8">
+        <Link href="/" className="flex items-center gap-2.5 px-2 mb-8">
           <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center">
             <Activity className="w-4 h-4 text-brand-400" />
           </div>
@@ -227,28 +229,29 @@ export default function DashboardPage() {
           >
             Poly<span className="text-brand-400">Bot</span>
           </span>
-        </div>
+        </Link>
 
         {/* Nav items */}
         <nav className="flex-1 space-y-1">
           {[
-            { icon: BarChart3, label: "Dashboard", active: true },
-            { icon: Target, label: "Markets" },
-            { icon: Zap, label: "Strategies" },
-            { icon: Shield, label: "Risk" },
-            { icon: Settings, label: "Settings" },
-          ].map((item, i) => (
-            <button
-              key={i}
+            { icon: BarChart3, label: "Dashboard", href: "/dashboard" },
+            { icon: Target, label: "Markets", href: "/markets" },
+            { icon: Zap, label: "Strategies", href: "/strategies" },
+            { icon: Shield, label: "Risk", href: "/risk" },
+            { icon: Settings, label: "Settings", href: "/account" },
+          ].map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                item.active
+                pathname === item.href
                   ? "bg-brand-500/10 text-brand-400"
                   : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
               }`}
             >
               <item.icon className="w-4 h-4" />
               {item.label}
-            </button>
+            </Link>
           ))}
         </nav>
 
@@ -326,7 +329,11 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button className="p-2 rounded-lg hover:bg-white/5 transition-colors">
+              <button
+                onClick={refresh}
+                className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                aria-label="Refresh dashboard data"
+              >
                 <RefreshCw className="w-4 h-4 text-slate-400" />
               </button>
               <button className="p-2 rounded-lg hover:bg-white/5 transition-colors relative">
