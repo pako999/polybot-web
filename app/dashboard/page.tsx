@@ -22,6 +22,9 @@ import {
   Target,
   RefreshCw,
   ChevronDown,
+  Brain,
+  Radio,
+  AlertTriangle,
 } from "lucide-react";
 import { UserButton, useUser } from "@clerk/nextjs";
 
@@ -235,6 +238,7 @@ export default function DashboardPage() {
         <nav className="flex-1 space-y-1">
           {[
             { icon: BarChart3, label: "Dashboard", href: "/dashboard" },
+            { icon: Brain, label: "AI Events", href: "/events" },
             { icon: Target, label: "Markets", href: "/markets" },
             { icon: Zap, label: "Strategies", href: "/strategies" },
             { icon: Shield, label: "Risk", href: "/risk" },
@@ -494,6 +498,80 @@ export default function DashboardPage() {
                   </filter>
                 </defs>
               </svg>
+            </div>
+          </div>
+
+          {/* ===== AI EVENT SIGNALS WIDGET ===== */}
+          <div className="card-glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                  <Brain className="w-4 h-4 text-brand-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white" style={{ fontFamily: "var(--font-display)" }}>
+                    AI Event Signals
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">LLM-powered news analysis for prediction markets</p>
+                </div>
+              </div>
+              <Link
+                href="/events"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors"
+              >
+                <Radio className="w-4 h-4" />
+                Open Scanner
+              </Link>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[
+                {
+                  headline: "Fed signals potential rate cut",
+                  urgency: "high" as const,
+                  shift: "+12%",
+                  market: "Fed rate cut June 2026",
+                  action: "BUY YES",
+                  actionColor: "text-green-400 bg-green-500/10",
+                },
+                {
+                  headline: "Ukraine ceasefire talks resume",
+                  urgency: "high" as const,
+                  shift: "+12%",
+                  market: "Ceasefire before Sept 2026",
+                  action: "BUY YES",
+                  actionColor: "text-green-400 bg-green-500/10",
+                },
+                {
+                  headline: "ETH ETF record $2.1B inflow",
+                  urgency: "medium" as const,
+                  shift: "+6%",
+                  market: "ETH > $5000 June 2026",
+                  action: "BUY YES",
+                  actionColor: "text-green-400 bg-green-500/10",
+                },
+              ].map((signal, i) => (
+                <Link
+                  key={i}
+                  href="/events"
+                  className="p-4 rounded-xl bg-white/2 border border-white/5 hover:border-brand-500/20 transition-colors group"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`w-2 h-2 rounded-full ${signal.urgency === "high" ? "bg-orange-400" : "bg-yellow-400"}`} />
+                    <span className="text-xs text-slate-500 font-mono uppercase">
+                      {signal.urgency}
+                    </span>
+                  </div>
+                  <h4 className="text-sm text-white font-medium mb-2 leading-snug group-hover:text-brand-400 transition-colors">
+                    {signal.headline}
+                  </h4>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400 truncate">{signal.market}</span>
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${signal.actionColor}`}>
+                      {signal.shift}
+                    </span>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
 
