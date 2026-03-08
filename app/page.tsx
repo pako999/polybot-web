@@ -243,7 +243,7 @@ export default function Home() {
             </h2>
             <p className="text-slate-400 text-lg max-w-xl mx-auto">
               Every component optimized for the fastest possible execution on
-              Polymarket's CLOB.
+              Polymarket&apos;s CLOB.
             </p>
           </div>
 
