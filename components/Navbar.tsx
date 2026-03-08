@@ -50,6 +50,12 @@ export default function Navbar() {
             >
               Dashboard
             </Link>
+            <Link
+              href="/account"
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              Account
+            </Link>
           </SignedIn>
         </div>
 
@@ -72,6 +78,12 @@ export default function Navbar() {
               className="btn-primary text-sm px-5 py-2.5"
             >
               Dashboard
+            </Link>
+            <Link
+              href="/account"
+              className="text-sm text-slate-400 hover:text-white transition-colors px-2"
+            >
+              Account
             </Link>
             <UserButton
               afterSignOutUrl="/"
@@ -106,6 +118,9 @@ export default function Navbar() {
           <SignedIn>
             <Link href="/dashboard" className="block text-slate-300" onClick={() => setOpen(false)}>
               Dashboard
+            </Link>
+            <Link href="/account" className="block text-slate-300" onClick={() => setOpen(false)}>
+              Account
             </Link>
           </SignedIn>
 

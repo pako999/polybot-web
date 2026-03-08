@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://polybot.uk"),
   title: "PolyBot — AI-Powered Prediction Market Trading",
   description:
     "Automated trading bot for Polymarket. Arbitrage, momentum, and convergence strategies with real-time WebSocket execution. Start earning with prediction markets.",
@@ -19,6 +20,8 @@ export const metadata: Metadata = {
     title: "PolyBot — AI-Powered Prediction Market Trading",
     description: "Automated Polymarket trading. Arbitrage. Speed. Profit.",
     type: "website",
+    url: "https://polybot.uk",
+    siteName: "PolyBot",
   },
 };
 
