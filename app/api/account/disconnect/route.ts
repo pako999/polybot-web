@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { disconnectWalletForUser, requireAuthenticatedUserId } from "@/lib/server/account-state";
+import { appendBotEventForUser, disconnectWalletForUser, requireAuthenticatedUserId } from "@/lib/server/account-state";
 import { isCrossSiteRequest } from "@/lib/server/security";
 
 export async function POST(req: NextRequest) {
@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
   }
 
   const state = await disconnectWalletForUser(userId);
+  await appendBotEventForUser(userId, {
+    type: "wallet_disconnected",
+    message: "Wallet disconnected.",
+  });
   console.info("[security-audit] wallet_disconnected", { userId });
   return NextResponse.json({
     message: "Wallet disconnected.",

@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, Loader2, Play, Power, Unplug } from "lucide-react";
 import {
+  ApiClientError,
   clearAuthSession,
+  getAccountProfile,
   getBotStatus,
   getCachedWalletAddress,
+  postAccountConfig,
   postAccountDisconnect,
   postBotStart,
   postBotStop,
+  postLiveModeAcknowledge,
   postWalletChallenge,
   postWalletVerify,
   type BotConfig,
@@ -23,6 +27,30 @@ function shortenAddress(value: string | null) {
 }
 
 function normalizeError(error: unknown) {
+  if (error instanceof ApiClientError) {
+    switch (error.code) {
+      case "AUTH_REQUIRED":
+        return "Your session expired. Please sign in again.";
+      case "BACKEND_UNAVAILABLE":
+        return "Bot backend is offline right now. Please try again shortly.";
+      case "BACKEND_TOKEN_MISMATCH":
+        return "Bot backend authentication failed. Please contact support.";
+      case "LIVE_MODE_REQUIRES_WALLET":
+        return "Connect and verify a wallet before using live mode.";
+      case "LIVE_MODE_NOT_READY":
+        return "Live mode is locked until wallet connection and risk acknowledgement are complete.";
+      case "WALLET_SIGNATURE_MISMATCH":
+        return "The signed wallet does not match the selected wallet account.";
+      case "INVALID_OR_EXPIRED_CHALLENGE":
+        return "Wallet signature request expired. Please connect again.";
+      case "INVALID_SIGNATURE":
+        return "Wallet signature was invalid. Please try again.";
+      case "RATE_LIMITED":
+        return "Too many requests. Please wait a moment and try again.";
+      default:
+        return error.message;
+    }
+  }
   if (error instanceof Error) return error.message;
   return "Unexpected error. Please try again.";
 }
@@ -50,22 +78,50 @@ export default function AccountPage() {
   const [disconnectLoading, setDisconnectLoading] = useState(false);
   const [startLoading, setStartLoading] = useState(false);
   const [stopLoading, setStopLoading] = useState(false);
+  const [saveConfigLoading, setSaveConfigLoading] = useState(false);
+  const [acknowledgeLiveLoading, setAcknowledgeLiveLoading] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState<WalletOption["id"] | null>(null);
 
   // Paper mode setup
   const [paperBalanceUsdc, setPaperBalanceUsdc] = useState(1000);
+  const [paperTrade, setPaperTrade] = useState(true);
   const [positionSizingMode, setPositionSizingMode] = useState<"auto" | "manual">("auto");
   const [maxPositionUsdc, setMaxPositionUsdc] = useState(100);
   const [maxExposureUsdc, setMaxExposureUsdc] = useState(1000);
   const [kellyFraction, setKellyFraction] = useState(0.2);
+  const [liveModeAcknowledgedAt, setLiveModeAcknowledgedAt] = useState<string | null>(null);
+  const [liveModeEligible, setLiveModeEligible] = useState(false);
+  const [statusStreamConnected, setStatusStreamConnected] = useState(false);
+  const lifecycleState = botStatus?.lifecycleState ?? (botRunning ? "running" : "stopped");
 
   const connected = Boolean(walletAddress);
   const hasWalletProvider = walletOptions.length > 0;
   const selectedWallet = useMemo(
     () => walletOptions.find((option) => option.id === selectedWalletId) || walletOptions[0],
     [walletOptions, selectedWalletId]
+  );
+
+  const applyBotConfig = useCallback((config: Partial<BotConfig> | undefined) => {
+    if (!config) return;
+    setPaperTrade(config.paperTrade ?? true);
+    setPaperBalanceUsdc(config.paperBalanceUsdc ?? DEFAULT_BOT_CONFIG.paperBalanceUsdc ?? 1000);
+    setPositionSizingMode(config.positionSizingMode === "manual" ? "manual" : "auto");
+    setMaxPositionUsdc(config.maxPositionUsdc ?? DEFAULT_BOT_CONFIG.maxPositionUsdc);
+    setMaxExposureUsdc(config.maxExposureUsdc ?? DEFAULT_BOT_CONFIG.maxExposureUsdc);
+    setKellyFraction(config.kellyFraction ?? DEFAULT_BOT_CONFIG.kellyFraction);
+  }, []);
+
+  const applyProfile = useCallback(
+    (profile: Awaited<ReturnType<typeof getAccountProfile>>) => {
+      setWalletAddress(profile.walletAddress || getCachedWalletAddress());
+      setChainId(profile.chainId || null);
+      setLiveModeAcknowledgedAt(profile.liveModeAcknowledgedAt ?? null);
+      setLiveModeEligible(Boolean(profile.liveModeEligible));
+      applyBotConfig(profile.botConfig);
+    },
+    [applyBotConfig]
   );
 
   const statusPill = useMemo(
@@ -81,10 +137,10 @@ export default function AccountPage() {
   const hydrateFromStatus = useCallback(async () => {
     setInitialLoading(true);
     try {
-      const status = await getBotStatus();
+      const [status, profile] = await Promise.all([getBotStatus(), getAccountProfile()]);
       setBotStatus(status);
       setBotRunning(Boolean(status.running));
-      setWalletAddress(status.walletAddress || getCachedWalletAddress());
+      applyProfile(profile);
     } catch (error) {
       setWalletAddress(getCachedWalletAddress());
       const message = normalizeError(error);
@@ -94,13 +150,15 @@ export default function AccountPage() {
     } finally {
       setInitialLoading(false);
     }
-  }, []);
+  }, [applyProfile]);
 
   const clearWalletState = useCallback(() => {
     setWalletAddress(null);
     setChainId(null);
     setBotRunning(false);
     setBotStatus(null);
+    setPaperTrade(true);
+    setLiveModeEligible(false);
     clearAuthSession();
   }, []);
 
@@ -177,6 +235,7 @@ export default function AccountPage() {
     try {
       const config: BotConfig = {
         ...DEFAULT_BOT_CONFIG,
+        paperTrade,
         paperBalanceUsdc,
         maxPositionUsdc,
         maxExposureUsdc,
@@ -198,11 +257,50 @@ export default function AccountPage() {
   }, [
     hydrateFromStatus,
     paperBalanceUsdc,
+    paperTrade,
     maxPositionUsdc,
     maxExposureUsdc,
     kellyFraction,
     positionSizingMode,
   ]);
+
+  const handleSaveConfig = useCallback(async () => {
+    setSaveConfigLoading(true);
+    try {
+      const config: BotConfig = {
+        ...DEFAULT_BOT_CONFIG,
+        paperTrade,
+        paperBalanceUsdc,
+        maxPositionUsdc,
+        maxExposureUsdc,
+        kellyFraction,
+        positionSizingMode,
+      };
+      const response = await postAccountConfig(config);
+      applyBotConfig(response.config);
+      setLiveModeEligible(Boolean(response.liveModeEligible));
+      setLiveModeAcknowledgedAt(response.liveModeAcknowledgedAt ?? null);
+      setNotice({ type: "success", message: "Trading settings saved." });
+    } catch (error) {
+      setNotice({ type: "error", message: normalizeError(error) });
+    } finally {
+      setSaveConfigLoading(false);
+    }
+  }, [applyBotConfig, kellyFraction, maxExposureUsdc, maxPositionUsdc, paperBalanceUsdc, paperTrade, positionSizingMode]);
+
+  const handleAcknowledgeLiveMode = useCallback(async () => {
+    setAcknowledgeLiveLoading(true);
+    try {
+      const response = await postLiveModeAcknowledge();
+      setLiveModeEligible(Boolean(response.liveModeEligible));
+      setLiveModeAcknowledgedAt(response.liveModeAcknowledgedAt);
+      setNotice({ type: "success", message: "Live mode acknowledgement saved." });
+    } catch (error) {
+      setNotice({ type: "error", message: normalizeError(error) });
+    } finally {
+      setAcknowledgeLiveLoading(false);
+    }
+  }, []);
 
   const handleStopBot = useCallback(async () => {
     setStopLoading(true);
@@ -221,6 +319,52 @@ export default function AccountPage() {
   useEffect(() => {
     hydrateFromStatus();
   }, [hydrateFromStatus]);
+
+  useEffect(() => {
+    const eventSource = new EventSource("/api/bot/stream");
+
+    eventSource.onopen = () => {
+      setStatusStreamConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const nextStatus = JSON.parse(event.data) as BotStatusResponse;
+        setBotStatus(nextStatus);
+        setBotRunning(Boolean(nextStatus.running));
+        if (nextStatus.walletAddress) {
+          setWalletAddress(nextStatus.walletAddress);
+        }
+      } catch {
+        // Ignore malformed events and keep fallback polling active.
+      }
+    };
+
+    eventSource.onerror = () => {
+      setStatusStreamConnected(false);
+      eventSource.close();
+    };
+
+    return () => {
+      setStatusStreamConnected(false);
+      eventSource.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (statusStreamConnected) {
+      return;
+    }
+    if (!["starting", "running", "stopping"].includes(lifecycleState)) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      hydrateFromStatus().catch(() => undefined);
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [hydrateFromStatus, lifecycleState, statusStreamConnected]);
 
   useEffect(() => {
     const discovered = getWalletOptions();
@@ -315,10 +459,26 @@ export default function AccountPage() {
               <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm">
                 <div className="flex items-center justify-between">
                   <p className="text-slate-500">Bot Status</p>
-                  <p className={`font-mono ${botRunning ? "text-brand-400" : "text-slate-300"}`}>
-                    {botRunning ? "RUNNING" : "STOPPED"}
+                  <p
+                    className={`font-mono ${
+                      lifecycleState === "running"
+                        ? "text-brand-400"
+                        : lifecycleState === "error"
+                          ? "text-red-300"
+                          : lifecycleState === "starting" || lifecycleState === "stopping"
+                            ? "text-yellow-300"
+                            : "text-slate-300"
+                    }`}
+                  >
+                    {lifecycleState.toUpperCase()}
                   </p>
                 </div>
+                <p className="text-slate-500 mt-2">
+                  Updates:{" "}
+                  <span className={`font-mono ${statusStreamConnected ? "text-brand-300" : "text-yellow-300"}`}>
+                    {statusStreamConnected ? "LIVE STREAM" : "POLLING FALLBACK"}
+                  </span>
+                </p>
                 <p className="text-slate-300 mt-2">
                   PnL:{" "}
                   <span className="font-mono text-white">
@@ -363,6 +523,81 @@ export default function AccountPage() {
                   Paper mode: Start the bot without connecting a wallet. No real money is used.
                 </div>
               )}
+
+              <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-white">Trading mode</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Paper mode is always available. Live mode unlocks only after required checks.
+                    </p>
+                  </div>
+                  <div className="inline-flex rounded-lg border border-white/10 bg-black/20 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setPaperTrade(true)}
+                      className={`px-3 py-1.5 rounded-md text-sm ${
+                        paperTrade ? "bg-brand-500/20 text-brand-300" : "text-slate-400"
+                      }`}
+                    >
+                      Paper
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (liveModeEligible) {
+                          setPaperTrade(false);
+                        }
+                      }}
+                      disabled={!liveModeEligible}
+                      className={`px-3 py-1.5 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                        !paperTrade ? "bg-red-500/20 text-red-300" : "text-slate-400"
+                      }`}
+                    >
+                      Live
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <p className="text-slate-500 mb-1">Wallet connected</p>
+                    <p className={connected ? "text-brand-300" : "text-slate-300"}>
+                      {connected ? "Complete" : "Required for live mode"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <p className="text-slate-500 mb-1">Risk acknowledgement</p>
+                    <p className={liveModeAcknowledgedAt ? "text-brand-300" : "text-slate-300"}>
+                      {liveModeAcknowledgedAt ? "Complete" : "Required for live mode"}
+                    </p>
+                  </div>
+                </div>
+
+                {!liveModeAcknowledgedAt && connected ? (
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={handleAcknowledgeLiveMode}
+                      disabled={acknowledgeLiveLoading}
+                      className="btn-secondary inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {acknowledgeLiveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      Acknowledge Live Trading Risk
+                    </button>
+                  </div>
+                ) : null}
+
+                {!liveModeEligible ? (
+                  <p className="mt-4 text-xs text-yellow-300">
+                    Live mode is locked until you connect a wallet and accept the live trading risk acknowledgement.
+                  </p>
+                ) : (
+                  <p className="mt-4 text-xs text-brand-300">
+                    Live mode is unlocked for this account.
+                  </p>
+                )}
+              </div>
 
               <div className="mt-6 card-glass rounded-xl p-5 border border-brand-500/20">
                 <p className="text-sm font-medium text-white mb-4">Paper mode setup</p>
@@ -457,6 +692,20 @@ export default function AccountPage() {
                     )}
                   </div>
                 </div>
+                <div className="mt-5 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveConfig}
+                    disabled={saveConfigLoading}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {saveConfigLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Save Settings
+                  </button>
+                  <p className="text-xs text-slate-500">
+                    Saved settings become the default for future bot starts.
+                  </p>
+                </div>
               </div>
 
               {notice && (
@@ -499,17 +748,17 @@ export default function AccountPage() {
                 <button
                   type="button"
                   onClick={handleStartBot}
-                  disabled={startLoading || botRunning}
+                  disabled={startLoading || ["starting", "running", "stopping"].includes(lifecycleState)}
                   className="btn-primary flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {startLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                  Start Bot (Paper)
+                  {paperTrade ? "Start Bot (Paper)" : "Start Bot (Live)"}
                 </button>
 
                 <button
                   type="button"
                   onClick={handleStopBot}
-                  disabled={stopLoading || !botRunning}
+                  disabled={stopLoading || ["idle", "stopped"].includes(lifecycleState)}
                   className="btn-secondary flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {stopLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}

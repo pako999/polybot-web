@@ -1,6 +1,12 @@
 const INTERNAL_BASE_URL = process.env.POLYBOT_INTERNAL_BASE_URL;
 const INTERNAL_API_TOKEN = process.env.POLYBOT_INTERNAL_API_TOKEN;
 
+export type InternalBotErrorCode =
+  | "BACKEND_CONFIG_MISSING"
+  | "BACKEND_TOKEN_MISMATCH"
+  | "BACKEND_UNAVAILABLE"
+  | "BACKEND_REQUEST_FAILED";
+
 export type InternalBotStartConfig = {
   min_market_volume: number;
   min_market_liquidity: number;
@@ -41,10 +47,13 @@ function getMissingConfigMessage() {
 async function internalBotRequest<TResponse>(
   path: string,
   options: { method: "GET" | "POST"; body?: unknown }
-): Promise<{ ok: true; data: TResponse } | { ok: false; message: string }> {
+): Promise<
+  | { ok: true; data: TResponse }
+  | { ok: false; code: InternalBotErrorCode; message: string; upstreamStatus?: number }
+> {
   const configError = getMissingConfigMessage();
   if (configError) {
-    return { ok: false, message: configError };
+    return { ok: false, code: "BACKEND_CONFIG_MISSING", message: configError };
   }
 
   const endpoint = `${INTERNAL_BASE_URL}${path}`;
@@ -66,9 +75,15 @@ async function internalBotRequest<TResponse>(
     } & TResponse;
 
     if (!response.ok) {
+      const code =
+        response.status === 401 || response.status === 403
+          ? "BACKEND_TOKEN_MISMATCH"
+          : "BACKEND_REQUEST_FAILED";
       return {
         ok: false,
+        code,
         message: payload.error || payload.message || `Internal bot API error (${response.status}).`,
+        upstreamStatus: response.status,
       };
     }
 
@@ -76,6 +91,7 @@ async function internalBotRequest<TResponse>(
   } catch {
     return {
       ok: false,
+      code: "BACKEND_UNAVAILABLE",
       message: "Unable to reach internal bot API.",
     };
   }

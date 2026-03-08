@@ -8,6 +8,7 @@ const isProtectedRoute = createRouteMatcher([
   "/markets(.*)",
   "/strategies(.*)",
   "/risk(.*)",
+  "/admin(.*)",
 ]);
 
 function buildCsp() {

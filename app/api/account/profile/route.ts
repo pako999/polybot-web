@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAccountStateForUser, requireAuthenticatedUserId } from "@/lib/server/account-state";
+import { getAccountStateForUser, isLiveModeEligible, requireAuthenticatedUserId } from "@/lib/server/account-state";
 
 export async function GET() {
   const { userId, error } = await requireAuthenticatedUserId();
@@ -13,5 +13,9 @@ export async function GET() {
     walletAddress: state.walletAddress,
     chainId: state.chainId,
     botRunning: state.botRunning,
+    botLifecycleState: state.botLifecycleState,
+    liveModeAcknowledgedAt: state.liveModeAcknowledgedAt,
+    liveModeEligible: isLiveModeEligible(state),
+    botConfig: state.botConfig,
   });
 }

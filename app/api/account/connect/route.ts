@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  appendBotEventForUser,
   connectWalletForUser,
   isValidWalletAddress,
   requireAuthenticatedUserId,
@@ -37,6 +38,10 @@ export async function POST(req: NextRequest) {
 
   const chainId = typeof payload.chainId === "string" ? payload.chainId : null;
   const state = await connectWalletForUser(userId, payload.walletAddress, chainId);
+  await appendBotEventForUser(userId, {
+    type: "wallet_connected",
+    message: `Wallet ${state.walletAddress} connected.`,
+  });
   console.info("[security-audit] wallet_connected", {
     userId,
     walletAddress: state.walletAddress,

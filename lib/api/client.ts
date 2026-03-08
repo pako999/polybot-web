@@ -7,7 +7,20 @@ type HttpMethod = "GET" | "POST";
 type ApiErrorPayload = {
   error?: string;
   message?: string;
+  code?: string;
 };
+
+export class ApiClientError extends Error {
+  code?: string;
+  status: number;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiClientError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 export type WalletChallengeRequest = {
   walletAddress: string;
@@ -49,6 +62,17 @@ export type AccountDisconnectResponse = {
   ok: boolean;
 };
 
+export type AccountProfileResponse = {
+  connected: boolean;
+  walletAddress: string | null;
+  chainId: string | null;
+  botRunning: boolean;
+  botLifecycleState?: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
+  liveModeAcknowledgedAt?: string | null;
+  liveModeEligible?: boolean;
+  botConfig?: BotConfig;
+};
+
 export type BotConfig = {
   maxPositionUsdc: number;
   maxExposureUsdc: number;
@@ -79,6 +103,7 @@ export type BotStopResponse = {
 
 export type BotStatusResponse = {
   running: boolean;
+  lifecycleState?: "idle" | "starting" | "running" | "stopping" | "stopped" | "error";
   startedAt?: string | null;
   paperMode?: boolean;
   balanceUsdc?: number;
@@ -94,6 +119,20 @@ export type BotStatusResponse = {
   };
   walletAddress?: string | null;
   lastError?: string | null;
+  errorCode?: string | null;
+  backendAvailable?: boolean;
+};
+
+export type AccountConfigResponse = {
+  config: BotConfig;
+  liveModeEligible?: boolean;
+  liveModeAcknowledgedAt?: string | null;
+};
+
+export type LiveModeAcknowledgeResponse = {
+  message: string;
+  liveModeEligible: boolean;
+  liveModeAcknowledgedAt: string | null;
 };
 
 function buildApiUrl(path: string): string {
@@ -178,7 +217,11 @@ async function requestJson<TResponse, TBody = unknown>(
 
   const payload = (await response.json().catch(() => ({}))) as ApiErrorPayload & TResponse;
   if (!response.ok) {
-    throw new Error(payload.error || payload.message || "Request failed.");
+    throw new ApiClientError(
+      payload.error || payload.message || "Request failed.",
+      response.status,
+      payload.code
+    );
   }
 
   return payload as TResponse;
@@ -218,6 +261,22 @@ export async function postAccountDisconnect() {
   const response = await requestJson<AccountDisconnectResponse>("POST", "/api/account/disconnect", undefined, true);
   clearAuthSession();
   return response;
+}
+
+export async function getAccountProfile() {
+  return requestJson<AccountProfileResponse>("GET", "/api/account/profile", undefined, true);
+}
+
+export async function getAccountConfig() {
+  return requestJson<AccountConfigResponse>("GET", "/api/account/config", undefined, true);
+}
+
+export async function postAccountConfig(payload: BotConfig) {
+  return requestJson<AccountConfigResponse, BotConfig>("POST", "/api/account/config", payload, true);
+}
+
+export async function postLiveModeAcknowledge() {
+  return requestJson<LiveModeAcknowledgeResponse>("POST", "/api/account/live-mode/acknowledge", undefined, true);
 }
 
 export async function postBotStart(payload: BotStartRequest) {
