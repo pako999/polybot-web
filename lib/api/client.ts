@@ -95,7 +95,21 @@ export type BotStatusResponse = {
 
 function buildApiUrl(path: string): string {
   if (!API_BASE_URL) return path;
-  return `${API_BASE_URL}${path}`;
+
+  // Safety: ignore localhost API targets on production hosts.
+  if (typeof window !== "undefined") {
+    const isProdHost = !["localhost", "127.0.0.1"].includes(window.location.hostname);
+    const isLocalApi =
+      API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1");
+    if (isProdHost && isLocalApi) {
+      return path;
+    }
+  }
+
+  const normalizedBase = API_BASE_URL.endsWith("/")
+    ? API_BASE_URL.slice(0, -1)
+    : API_BASE_URL;
+  return `${normalizedBase}${path}`;
 }
 
 function getAuthToken(): string | null {

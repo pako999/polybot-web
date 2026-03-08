@@ -24,10 +24,10 @@ function buildCsp() {
     "img-src 'self' data: https:",
     "font-src 'self' https://fonts.gstatic.com data:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com",
-    "connect-src 'self' https://clerk.com https://*.clerk.com",
-    "frame-src https://clerk.com https://*.clerk.com",
-    "form-action 'self' https://clerk.com https://*.clerk.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
+    "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://bot.polybot.uk",
+    "frame-src https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
+    "form-action 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
     "upgrade-insecure-requests",
   ].join("; ");
 }

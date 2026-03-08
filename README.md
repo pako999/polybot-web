@@ -187,6 +187,7 @@ CSP:
 - Set `SECURITY_CSP` to fully override policy if your deployment needs custom sources.
 - CSP reports are ingested at `POST /api/csp/report` (configurable via `SECURITY_CSP_REPORT_ENDPOINT`).
 - Middleware emits both `report-uri` and `Report-To` headers and logs normalized violation details.
+- Default policy includes Clerk runtime hosts (`*.clerk.accounts.dev`) and `https://bot.polybot.uk` for connect-src.
 
 ## File Structure
 
