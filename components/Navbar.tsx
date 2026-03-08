@@ -119,6 +119,9 @@ export default function Navbar() {
             <Link href="/dashboard" className="block text-slate-300" onClick={() => setOpen(false)}>
               Dashboard
             </Link>
+            <Link href="/events" className="block text-slate-300" onClick={() => setOpen(false)}>
+              AI Events
+            </Link>
             <Link href="/account" className="block text-slate-300" onClick={() => setOpen(false)}>
               Account
             </Link>
