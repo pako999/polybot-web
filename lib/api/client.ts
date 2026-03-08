@@ -99,12 +99,16 @@ export type BotStatusResponse = {
 function buildApiUrl(path: string): string {
   if (!API_BASE_URL) return path;
 
-  // Safety: ignore localhost API targets on production hosts.
+  // In browser: use relative path when API is same app to avoid www vs non-www CORS
   if (typeof window !== "undefined") {
     const isProdHost = !["localhost", "127.0.0.1"].includes(window.location.hostname);
     const isLocalApi =
       API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1");
     if (isProdHost && isLocalApi) {
+      return path;
+    }
+    // Same app (polybot.uk): use relative path to avoid preflight redirect CORS errors
+    if (isProdHost && (API_BASE_URL.includes("polybot.uk") || API_BASE_URL.includes("polybot.com"))) {
       return path;
     }
   }
