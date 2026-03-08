@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, Loader2, Play, Power, Unplug } from "lucide-react";
 import {
   clearAuthSession,
   getBotStatus,
   getCachedWalletAddress,
-  postAccountConnect,
   postAccountDisconnect,
   postBotStart,
   postBotStop,
@@ -17,6 +15,7 @@ import {
   type BotStatusResponse,
 } from "@/lib/api/client";
 import { getWalletOptions, type WalletOption } from "@/lib/wallet/providers";
+import { DashboardShell } from "@/components/DashboardShell";
 
 function shortenAddress(value: string | null) {
   if (!value) return "Not connected";
@@ -136,11 +135,6 @@ export default function AccountPage() {
         signature,
       });
 
-      await postAccountConnect({
-        signatureType: "eip191",
-        funderAddress: selectedAccount,
-      });
-
       setWalletAddress(selectedAccount);
       await hydrateFromStatus();
       setNotice({ type: "success", message: `${selectedWallet.label} connected and account linked.` });
@@ -256,23 +250,11 @@ export default function AccountPage() {
   }, [clearWalletState, hydrateFromStatus, selectedWallet]);
 
   return (
-    <main className="min-h-screen bg-surface-900 px-6 py-24">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-10">
-          <Link href="/dashboard" className="text-sm text-slate-400 hover:text-white transition-colors">
-            Back to Dashboard
-          </Link>
-          <h1
-            className="text-4xl sm:text-5xl font-bold text-white mt-3"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Account
-          </h1>
-          <p className="text-slate-400 mt-2">
-            Connect your Polymarket wallet and control bot execution from one place.
-          </p>
-        </div>
-
+    <DashboardShell
+      title="Account"
+      subtitle="Connect your Polymarket wallet and control bot execution"
+    >
+      <div className="max-w-3xl">
         <section className="card-glass rounded-2xl p-6 sm:p-8">
           {initialLoading ? (
             <div className="flex items-center gap-2 text-slate-400 text-sm">
@@ -413,6 +395,6 @@ export default function AccountPage() {
           )}
         </section>
       </div>
-    </main>
+    </DashboardShell>
   );
 }

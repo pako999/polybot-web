@@ -7,35 +7,44 @@ type CspReportBody =
     }
   | Array<Record<string, unknown>>;
 
-function sanitize(value: unknown, maxLen = 300) {
-  if (typeof value !== "string") return "unknown";
-  return value.slice(0, maxLen);
+function getStr(obj: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string") return v.slice(0, 300);
+  }
+  return "unknown";
 }
 
-function extractReportDetails(parsed: CspReportBody) {
-  if (Array.isArray(parsed) && parsed.length > 0) {
-    const report = parsed[0];
-    return {
-      violatedDirective: sanitize(report?.["violated-directive"]),
-      effectiveDirective: sanitize(report?.["effective-directive"]),
-      blockedUri: sanitize(report?.["blocked-uri"]),
-      documentUri: sanitize(report?.["document-uri"]),
-      disposition: sanitize(report?.disposition),
-    };
-  }
-
-  const report = (parsed as { "csp-report"?: Record<string, unknown> })["csp-report"];
-  if (!report || typeof report !== "object") {
-    return null;
-  }
-
+function extractFromReport(report: Record<string, unknown>) {
   return {
-    violatedDirective: sanitize(report["violated-directive"]),
-    effectiveDirective: sanitize(report["effective-directive"]),
-    blockedUri: sanitize(report["blocked-uri"]),
-    documentUri: sanitize(report["document-uri"]),
-    disposition: sanitize(report.disposition),
+    violatedDirective: getStr(report, "violated-directive", "violatedDirective", "effectiveDirective"),
+    effectiveDirective: getStr(report, "effective-directive", "effectiveDirective"),
+    blockedUri: getStr(report, "blocked-uri", "blockedUri", "blockedURL"),
+    documentUri: getStr(report, "document-uri", "documentUri", "documentURL"),
+    disposition: getStr(report, "disposition"),
   };
+}
+
+function extractReportDetails(parsed: CspReportBody): Record<string, string> | null {
+  // Report-To format: { type: "csp-violation", body: {...} } or array of such
+  if (Array.isArray(parsed) && parsed.length > 0) {
+    const first = parsed[0] as Record<string, unknown>;
+    const body = first?.body && typeof first.body === "object" ? (first.body as Record<string, unknown>) : first;
+    if (body) return extractFromReport(body);
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  if (obj?.body && typeof obj.body === "object") {
+    return extractFromReport(obj.body as Record<string, unknown>);
+  }
+
+  // Legacy report-uri format: { "csp-report": {...} }
+  const cspReport = obj["csp-report"];
+  if (cspReport && typeof cspReport === "object") {
+    return extractFromReport(cspReport as Record<string, unknown>);
+  }
+
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -63,10 +72,17 @@ export async function POST(req: NextRequest) {
 
   const report = extractReportDetails(parsed);
   if (report) {
-    console.warn("[security-audit] csp_violation_report", {
-      sourceIp,
-      ...report,
-    });
+    const allUnknown =
+      report.violatedDirective === "unknown" &&
+      report.effectiveDirective === "unknown" &&
+      report.blockedUri === "unknown" &&
+      report.documentUri === "unknown";
+    const meta: Record<string, unknown> = { sourceIp, ...report };
+    if (allUnknown && parsed && typeof parsed === "object") {
+      const body = (parsed as { body?: unknown }).body ?? parsed;
+      meta.receivedKeys = Array.isArray(body) ? "array" : Object.keys(body as object);
+    }
+    console.warn("[security-audit] csp_violation_report", meta);
   }
 
   return new NextResponse(null, { status: 204 });

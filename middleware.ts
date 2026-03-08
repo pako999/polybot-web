@@ -16,7 +16,20 @@ function buildCsp() {
     return customCsp.trim();
   }
 
-  return [
+  const isDev = process.env.NODE_ENV === "development";
+  const connectSrc = [
+    "'self'",
+    "https://polybot.uk",
+    "https://www.polybot.uk",
+    "https://clerk.com",
+    "https://*.clerk.com",
+    "https://*.clerk.accounts.dev",
+    "https://*.clerk.dev",
+    "https://bot.polybot.uk",
+    ...(isDev ? ["http://localhost:8899", "ws://localhost:8899", "http://127.0.0.1:8899"] : []),
+  ].join(" ");
+
+  const directives = [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
@@ -24,12 +37,18 @@ function buildCsp() {
     "img-src 'self' data: https:",
     "font-src 'self' https://fonts.gstatic.com data:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
-    "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://bot.polybot.uk",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
+    "worker-src 'self' blob:",
+    `connect-src ${connectSrc}`,
     "frame-src https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
     "form-action 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
-    "upgrade-insecure-requests",
-  ].join("; ");
+  ];
+
+  if (!isDev) {
+    directives.push("upgrade-insecure-requests");
+  }
+
+  return directives.join("; ");
 }
 
 function hasReportingDirective(csp: string) {
