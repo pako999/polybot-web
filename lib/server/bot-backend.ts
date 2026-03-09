@@ -156,7 +156,7 @@ async function internalBotRequest<TResponse>(
     return { ok: false, code: "BACKEND_CONFIG_MISSING", message: configError };
   }
 
-  const base = BOT_BACKEND_URL.replace(/\/$/, "");
+  const base = (BOT_BACKEND_URL as string).replace(/\/$/, "");
   const endpoint = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
   try {
