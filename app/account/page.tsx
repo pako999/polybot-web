@@ -60,9 +60,9 @@ function describeBotBackendError(code?: string | null, fallback?: string | null)
     case "BACKEND_TOKEN_MISMATCH":
       return "Bot backend authentication failed. Check POLYBOT_INTERNAL_API_TOKEN on Vercel and the bot server.";
     case "BACKEND_UNAVAILABLE":
-      return "Bot backend is unavailable right now. Check POLYBOT_INTERNAL_BASE_URL and bot server uptime.";
+      return "Bot backend is unavailable right now. Check POLYBOT_BACKEND_URL and bot server uptime.";
     case "BACKEND_CONFIG_MISSING":
-      return "Bot backend env vars are missing. Check POLYBOT_INTERNAL_BASE_URL and POLYBOT_INTERNAL_API_TOKEN.";
+      return "Bot backend env vars are missing. Check POLYBOT_BACKEND_URL and POLYBOT_INTERNAL_API_TOKEN.";
     case "BACKEND_REQUEST_FAILED":
       return fallback || "Bot backend rejected the request.";
     case "AUTH_REQUIRED":

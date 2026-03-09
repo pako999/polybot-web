@@ -35,9 +35,9 @@ type AdminDetailResponse = {
 
 type BackendDiagnosticsResponse = {
   userId: string;
-  internalBaseUrlConfigured: boolean;
+  backendUrlConfigured: boolean;
   internalApiTokenConfigured: boolean;
-  internalBaseUrlHost: string | null;
+  backendUrlHost: string | null;
   probeOk: boolean;
   probeError: { code: string; message: string; upstreamStatus: number | null } | null;
   probeStatus: Record<string, unknown> | null;

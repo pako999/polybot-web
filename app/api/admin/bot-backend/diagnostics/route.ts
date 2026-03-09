@@ -15,9 +15,12 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     userId,
-    internalBaseUrlConfigured: Boolean(process.env.POLYBOT_INTERNAL_BASE_URL),
+    backendUrlConfigured: Boolean(
+      process.env.POLYBOT_BACKEND_URL || process.env.POLYBOT_INTERNAL_BASE_URL
+    ),
     internalApiTokenConfigured: Boolean(process.env.POLYBOT_INTERNAL_API_TOKEN),
-    internalBaseUrlHost: process.env.POLYBOT_INTERNAL_BASE_URL || null,
+    backendUrlHost:
+      process.env.POLYBOT_BACKEND_URL || process.env.POLYBOT_INTERNAL_BASE_URL || null,
     probeOk: probe.ok,
     probeError: probe.ok
       ? null

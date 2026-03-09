@@ -1,4 +1,6 @@
-const INTERNAL_BASE_URL = process.env.POLYBOT_INTERNAL_BASE_URL;
+/** Bot backend URL: POLYBOT_BACKEND_URL (preferred) or POLYBOT_INTERNAL_BASE_URL (legacy) */
+const BOT_BACKEND_URL =
+  process.env.POLYBOT_BACKEND_URL || process.env.POLYBOT_INTERNAL_BASE_URL;
 const INTERNAL_API_TOKEN = process.env.POLYBOT_INTERNAL_API_TOKEN;
 
 export type InternalBotErrorCode =
@@ -16,48 +18,83 @@ export type InternalBotStartConfig = {
   kelly_fraction?: number;
 };
 
-type InternalBotStatus = {
+/** Backend status shape: metrics nested, started_at as Unix timestamp */
+export type InternalBotStatus = {
+  user_id?: string;
+  run_id?: string;
   running?: boolean;
-  started_at?: string;
+  status?: string;
   paper_mode?: boolean;
+  uptime_min?: number;
+  started_at?: number | string;
+  stopped_at?: number;
+  updated_at?: number;
+  error?: string;
+  failure_count?: number;
+  mode?: string;
+  metrics?: {
+    status?: string;
+    started_at?: number;
+    paper_mode?: boolean;
+    total_pnl?: number;
+    balance_usdc?: number;
+    held_tokens?: number;
+    markets_tracked?: number;
+    positions?: unknown[];
+    recent_trades?: unknown[];
+    strategy_stats?: Record<string, { trades?: number; pnl?: number }>;
+    top_markets?: unknown[];
+    spikes_detected?: number;
+    latency?: { avg?: number; p50?: number; p95?: number; max?: number; n?: number };
+    ws?: Record<string, unknown>;
+  };
+  /** Legacy flat fields (fallback) */
   balance_usdc?: number;
   total_pnl?: number;
   positions?: number;
-  latency?: {
-    avg?: number;
-    p95?: number;
-  };
   markets_tracked?: number;
-  ws?: {
-    connected?: boolean;
-  };
+  latency?: { avg?: number; p95?: number };
+  ws?: { connected?: boolean };
   last_error?: string | null;
 };
 
+/** Backend trades shape: ts, strategy, action, token_id, price, size, response */
 export type InternalBotTrade = {
+  ts?: number;
+  strategy?: string;
+  action?: string;
+  token_id?: string;
+  price?: number;
+  size?: number;
+  reason?: string;
+  response?: { status?: string; orderID?: string };
+  paper_mode?: boolean;
+  /** Legacy/alternate fields */
   id?: string;
   trade_id?: string;
   market?: string;
   market_name?: string;
   side?: string;
-  action?: string;
-  price?: number;
-  size?: number;
   pnl?: number;
-  strategy?: string;
   status?: string;
   created_at?: string;
   executed_at?: string;
   latency_ms?: number;
 };
 
+/** Backend positions shape: token_id, size, avg_price, last_price, updated_at */
 export type InternalBotPosition = {
+  token_id?: string;
+  size?: number;
+  avg_price?: number;
+  last_price?: number;
+  updated_at?: number;
+  /** Legacy/alternate fields */
   id?: string;
   position_id?: string;
   market?: string;
   market_name?: string;
   side?: string;
-  size?: number;
   entry_price?: number;
   current_price?: number;
   realized_pnl?: number;
@@ -65,10 +102,30 @@ export type InternalBotPosition = {
   strategy?: string;
   status?: string;
   opened_at?: string;
-  updated_at?: string;
 };
 
+/** Backend stats shape: strategy_stats, held_tokens, latency, ws, top_markets */
 export type InternalBotStats = {
+  user_id?: string;
+  run_id?: string;
+  status?: string;
+  paper_mode?: boolean;
+  total_pnl?: number;
+  balance_usdc?: number;
+  held_tokens?: number;
+  markets_tracked?: number;
+  spikes_detected?: number;
+  strategy_stats?: Record<string, { trades?: number; pnl?: number }>;
+  latency?: { avg?: number; p50?: number; p95?: number; max?: number; n?: number };
+  ws?: { subscribed?: number; messages?: number };
+  top_markets?: Array<{
+    condition_id?: string;
+    question?: string;
+    volume?: number;
+    liquidity?: number;
+    token_count?: number;
+  }>;
+  /** Legacy fields */
   total_trades?: number;
   open_positions?: number;
   realized_pnl?: number;
@@ -78,8 +135,8 @@ export type InternalBotStats = {
 };
 
 function getMissingConfigMessage() {
-  if (!INTERNAL_BASE_URL) {
-    return "Missing POLYBOT_INTERNAL_BASE_URL.";
+  if (!BOT_BACKEND_URL) {
+    return "Missing POLYBOT_BACKEND_URL or POLYBOT_INTERNAL_BASE_URL.";
   }
   if (!INTERNAL_API_TOKEN) {
     return "Missing POLYBOT_INTERNAL_API_TOKEN.";
@@ -99,7 +156,8 @@ async function internalBotRequest<TResponse>(
     return { ok: false, code: "BACKEND_CONFIG_MISSING", message: configError };
   }
 
-  const endpoint = `${INTERNAL_BASE_URL}${path}`;
+  const base = BOT_BACKEND_URL.replace(/\/$/, "");
+  const endpoint = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
   try {
     const response = await fetch(endpoint, {

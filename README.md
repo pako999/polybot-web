@@ -44,7 +44,7 @@ cp .env.local.example .env.local
 # SECURITY_CSP_REPORT_ONLY=true
 # SECURITY_CSP_REPORT_ENDPOINT=/api/csp/report
 # SECURITY_CSP=default-src 'self'; ...
-# POLYBOT_INTERNAL_BASE_URL=https://bot.polybot.uk
+# POLYBOT_BACKEND_URL=https://bot.polybot.uk  (or POLYBOT_INTERNAL_BASE_URL)
 # POLYBOT_INTERNAL_API_TOKEN=<same as VPS INTERNAL_API_TOKEN>
 ```
 
@@ -76,7 +76,7 @@ npm i -g vercel
 vercel
 # Add env vars in Vercel dashboard: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY
 # Recommended production API base: NEXT_PUBLIC_API_BASE_URL=https://polybot.uk
-# Optional server-side bot bridge: POLYBOT_INTERNAL_BASE_URL, POLYBOT_INTERNAL_API_TOKEN
+# Optional server-side bot bridge: POLYBOT_BACKEND_URL, POLYBOT_INTERNAL_API_TOKEN
 
 # Option 2: GitHub
 # Push to GitHub → Connect repo in vercel.com → Add env vars → Auto deploys
@@ -109,17 +109,31 @@ Authenticated routes (all in this Next.js app):
 Notes:
 - No private keys are collected or stored.
 - Wallet info is saved in Clerk private metadata (`polybotAccount`) for the signed-in user.
-- Bot control/status routes call `POLYBOT_INTERNAL_BASE_URL` server-side with bearer token from `POLYBOT_INTERNAL_API_TOKEN`.
+- Bot control/status routes call `POLYBOT_BACKEND_URL` (or `POLYBOT_INTERNAL_BASE_URL`) server-side with bearer token from `POLYBOT_INTERNAL_API_TOKEN`.
 - Do not expose internal token to frontend (`NEXT_PUBLIC_` must never be used for this token).
 
 Internal bot API contract used by web backend:
 - `POST /api/bot/start` with `{ user_id, paper_mode, config: { min_market_volume, min_market_liquidity } }`
 - `POST /api/bot/stop` with `{ user_id }`
-- `GET /api/bot/status?user_id=<id>`
-- `GET /api/bot/trades?user_id=<id>` -> `{ trades: [...] }` or raw array
-- `GET /api/bot/positions?user_id=<id>` -> `{ positions: [...] }` or raw array
-- `GET /api/bot/stats?user_id=<id>` -> `{ stats: {...} }` or raw object
+- `GET /api/bot/status?user_id=<id>` — overall run state (metrics nested, `started_at` Unix timestamp)
+- `GET /api/bot/trades?user_id=<id>` — trade table (`trades[]` with `ts`, `strategy`, `action`, `token_id`, `price`, `size`, `response`)
+- `GET /api/bot/positions?user_id=<id>` — open positions (`positions[]` with `token_id`, `size`, `avg_price`, `last_price`, `updated_at`)
+- `GET /api/bot/stats?user_id=<id>` — dashboard cards and strategy panels (`total_pnl`, `held_tokens`, `strategy_stats`, `latency`, `ws`, `top_markets`)
 - Header on all calls: `Authorization: Bearer <POLYBOT_INTERNAL_API_TOKEN>`
+
+**Web integration**: See [web-integration/README.md](web-integration/README.md) for setup and usage when copying the proxy into another Next.js app.
+
+Web app usage:
+- Use `/status` for overall run state (lifecycle, paper mode, balance, P&L).
+- Use `/trades` for the trade table.
+- Use `/positions` for the open positions table.
+- Use `/stats` for dashboard cards and strategy panels.
+
+Empty-state handling:
+- No run yet → `status: "idle"` and empty arrays.
+- Just started → `status: "queued" or "starting"`.
+- Stopped → status still available, arrays may remain from last run.
+- Paper mode → `paper_mode: true`.
 
 ## Frontend Wallet Flow
 
@@ -217,6 +231,8 @@ components/
 lib/server/
   account-state.ts         Clerk metadata-backed wallet/bot state
   bot-backend.ts           Optional forwarding to live bot backend
+web-integration/
+  README.md                Setup and usage for copying proxy into another app
 ```
 
 ## Design

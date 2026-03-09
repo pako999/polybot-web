@@ -653,9 +653,13 @@ export default function DashboardPage() {
                     <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
                       {detailErrors.positions
                         ? detailErrors.positions
-                        : positionsCount > 0
-                          ? "The backend reports open positions, but it is not returning detailed position rows yet."
-                          : "No open positions are currently reported for this account."}
+                        : lifecycleState === "idle"
+                          ? "No bot run yet. Start the bot to see open positions."
+                          : lifecycleState === "starting"
+                            ? "Bot is starting. Positions will appear once the run is active."
+                            : positionsCount > 0
+                              ? "The backend reports open positions, but it is not returning detailed position rows yet."
+                              : "No open positions are currently reported for this account."}
                     </div>
                   )}
                 </div>
@@ -714,9 +718,13 @@ export default function DashboardPage() {
                     <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
                       {detailErrors.trades
                         ? detailErrors.trades
-                        : totalTrades && totalTrades > 0
-                          ? "The backend reports trades, but it is not returning detailed trade rows yet."
-                          : "No recent trades are currently reported for this account."}
+                        : lifecycleState === "idle"
+                          ? "No bot run yet. Start the bot to see trades."
+                          : lifecycleState === "starting"
+                            ? "Bot is starting. Trades will appear once the run is active."
+                            : totalTrades && totalTrades > 0
+                              ? "The backend reports trades, but it is not returning detailed trade rows yet."
+                              : "No recent trades are currently reported for this account."}
                     </div>
                   )}
                 </div>
