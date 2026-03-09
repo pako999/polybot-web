@@ -100,6 +100,9 @@ Authenticated routes (all in this Next.js app):
 - `POST /api/bot/start` — start bot for connected wallet
 - `POST /api/bot/stop` — stop bot for connected wallet
 - `GET /api/bot/status` — fetch user-scoped bot status
+- `GET /api/bot/trades` — fetch recent user-scoped trades from backend when supported
+- `GET /api/bot/positions` — fetch detailed user-scoped positions from backend when supported
+- `GET /api/bot/stats` — fetch user-scoped trade statistics from backend when supported
 - `POST /api/webhooks/clerk` — receives Clerk events and notifies Telegram on `user.created`
 - `POST /api/ops/alert` — protected endpoint for VPS error/down alerts -> Telegram
 
@@ -113,6 +116,9 @@ Internal bot API contract used by web backend:
 - `POST /api/bot/start` with `{ user_id, paper_mode, config: { min_market_volume, min_market_liquidity } }`
 - `POST /api/bot/stop` with `{ user_id }`
 - `GET /api/bot/status?user_id=<id>`
+- `GET /api/bot/trades?user_id=<id>` -> `{ trades: [...] }` or raw array
+- `GET /api/bot/positions?user_id=<id>` -> `{ positions: [...] }` or raw array
+- `GET /api/bot/stats?user_id=<id>` -> `{ stats: {...} }` or raw object
 - Header on all calls: `Authorization: Bearer <POLYBOT_INTERNAL_API_TOKEN>`
 
 ## Frontend Wallet Flow

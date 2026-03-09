@@ -34,6 +34,49 @@ type InternalBotStatus = {
   last_error?: string | null;
 };
 
+export type InternalBotTrade = {
+  id?: string;
+  trade_id?: string;
+  market?: string;
+  market_name?: string;
+  side?: string;
+  action?: string;
+  price?: number;
+  size?: number;
+  pnl?: number;
+  strategy?: string;
+  status?: string;
+  created_at?: string;
+  executed_at?: string;
+  latency_ms?: number;
+};
+
+export type InternalBotPosition = {
+  id?: string;
+  position_id?: string;
+  market?: string;
+  market_name?: string;
+  side?: string;
+  size?: number;
+  entry_price?: number;
+  current_price?: number;
+  realized_pnl?: number;
+  unrealized_pnl?: number;
+  strategy?: string;
+  status?: string;
+  opened_at?: string;
+  updated_at?: string;
+};
+
+export type InternalBotStats = {
+  total_trades?: number;
+  open_positions?: number;
+  realized_pnl?: number;
+  unrealized_pnl?: number;
+  win_rate?: number;
+  fill_rate?: number;
+};
+
 function getMissingConfigMessage() {
   if (!INTERNAL_BASE_URL) {
     return "Missing POLYBOT_INTERNAL_BASE_URL.";
@@ -124,6 +167,27 @@ export async function stopInternalBot(userId: string) {
 export async function getInternalBotStatus(userId: string) {
   const query = `?user_id=${encodeURIComponent(userId)}`;
   return internalBotRequest<InternalBotStatus>(`/api/bot/status${query}`, {
+    method: "GET",
+  });
+}
+
+export async function getInternalBotTrades(userId: string) {
+  const query = `?user_id=${encodeURIComponent(userId)}`;
+  return internalBotRequest<{ trades?: InternalBotTrade[] } | InternalBotTrade[]>(`/api/bot/trades${query}`, {
+    method: "GET",
+  });
+}
+
+export async function getInternalBotPositions(userId: string) {
+  const query = `?user_id=${encodeURIComponent(userId)}`;
+  return internalBotRequest<{ positions?: InternalBotPosition[] } | InternalBotPosition[]>(`/api/bot/positions${query}`, {
+    method: "GET",
+  });
+}
+
+export async function getInternalBotStats(userId: string) {
+  const query = `?user_id=${encodeURIComponent(userId)}`;
+  return internalBotRequest<{ stats?: InternalBotStats } | InternalBotStats>(`/api/bot/stats${query}`, {
     method: "GET",
   });
 }

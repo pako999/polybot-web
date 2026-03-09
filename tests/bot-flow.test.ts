@@ -57,6 +57,45 @@ let backendStatus = {
   ws: { connected: true },
   last_error: null as string | null,
 };
+let backendTrades = [
+  {
+    id: "trade_1",
+    market_name: "BTC above $120k?",
+    side: "YES",
+    action: "BUY",
+    price: 0.62,
+    size: 150,
+    pnl: 12.5,
+    strategy: "momentum",
+    status: "filled",
+    executed_at: "2026-03-09T08:00:00.000Z",
+    latency_ms: 44,
+  },
+];
+let backendPositions = [
+  {
+    id: "position_1",
+    market_name: "BTC above $120k?",
+    side: "YES",
+    size: 150,
+    entry_price: 0.62,
+    current_price: 0.67,
+    unrealized_pnl: 7.5,
+    realized_pnl: 0,
+    strategy: "momentum",
+    status: "open",
+    opened_at: "2026-03-09T07:00:00.000Z",
+    updated_at: "2026-03-09T08:00:00.000Z",
+  },
+];
+let backendStats = {
+  total_trades: 12,
+  open_positions: 1,
+  realized_pnl: 22.4,
+  unrealized_pnl: 7.5,
+  win_rate: 75,
+  fill_rate: 98,
+};
 
 vi.mock("@/lib/server/security", () => ({
   isCrossSiteRequest: vi.fn(() => false),
@@ -129,6 +168,9 @@ vi.mock("@/lib/server/bot-backend", () => ({
     return { ok: true as const, data: { ok: true, status: "stopped", message: "stopped" } };
   }),
   getInternalBotStatus: vi.fn(async () => ({ ok: true as const, data: backendStatus })),
+  getInternalBotTrades: vi.fn(async () => ({ ok: true as const, data: { trades: backendTrades } })),
+  getInternalBotPositions: vi.fn(async () => ({ ok: true as const, data: { positions: backendPositions } })),
+  getInternalBotStats: vi.fn(async () => ({ ok: true as const, data: { stats: backendStats } })),
 }));
 
 function makeJsonRequest(url: string, method: string, body?: unknown) {
@@ -155,6 +197,45 @@ describe("bot route integration flow", () => {
       markets_tracked: 0,
       ws: { connected: true },
       last_error: null,
+    };
+    backendTrades = [
+      {
+        id: "trade_1",
+        market_name: "BTC above $120k?",
+        side: "YES",
+        action: "BUY",
+        price: 0.62,
+        size: 150,
+        pnl: 12.5,
+        strategy: "momentum",
+        status: "filled",
+        executed_at: "2026-03-09T08:00:00.000Z",
+        latency_ms: 44,
+      },
+    ];
+    backendPositions = [
+      {
+        id: "position_1",
+        market_name: "BTC above $120k?",
+        side: "YES",
+        size: 150,
+        entry_price: 0.62,
+        current_price: 0.67,
+        unrealized_pnl: 7.5,
+        realized_pnl: 0,
+        strategy: "momentum",
+        status: "open",
+        opened_at: "2026-03-09T07:00:00.000Z",
+        updated_at: "2026-03-09T08:00:00.000Z",
+      },
+    ];
+    backendStats = {
+      total_trades: 12,
+      open_positions: 1,
+      realized_pnl: 22.4,
+      unrealized_pnl: 7.5,
+      win_rate: 75,
+      fill_rate: 98,
     };
     vi.resetModules();
   });
@@ -247,5 +328,43 @@ describe("bot route integration flow", () => {
     expect(json.lifecycleState).toBe("error");
     expect(json.errorCode).toBe("BACKEND_UNAVAILABLE");
     expect(json.backendAvailable).toBe(false);
+  });
+
+  it("returns normalized trades, positions, and stats when backend detail endpoints exist", async () => {
+    const tradesRoute = await import("@/app/api/bot/trades/route");
+    const positionsRoute = await import("@/app/api/bot/positions/route");
+    const statsRoute = await import("@/app/api/bot/stats/route");
+
+    const tradesResponse = await tradesRoute.GET();
+    expect(tradesResponse.status).toBe(200);
+    const tradesJson = await tradesResponse.json();
+    expect(tradesJson.trades).toHaveLength(1);
+    expect(tradesJson.trades[0]).toMatchObject({
+      id: "trade_1",
+      market: "BTC above $120k?",
+      action: "BUY",
+      latencyMs: 44,
+    });
+
+    const positionsResponse = await positionsRoute.GET();
+    expect(positionsResponse.status).toBe(200);
+    const positionsJson = await positionsResponse.json();
+    expect(positionsJson.positions).toHaveLength(1);
+    expect(positionsJson.positions[0]).toMatchObject({
+      id: "position_1",
+      market: "BTC above $120k?",
+      entryPrice: 0.62,
+      unrealizedPnl: 7.5,
+    });
+
+    const statsResponse = await statsRoute.GET();
+    expect(statsResponse.status).toBe(200);
+    const statsJson = await statsResponse.json();
+    expect(statsJson.stats).toMatchObject({
+      totalTrades: 12,
+      openPositions: 1,
+      winRate: 75,
+      fillRate: 98,
+    });
   });
 });

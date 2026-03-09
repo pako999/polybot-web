@@ -25,12 +25,18 @@ import { UserButton } from "@clerk/nextjs";
 import {
   ApiClientError,
   getAccountProfile,
+  getBotPositions,
   getBotStatus,
+  getBotStats,
+  getBotTrades,
   postBotStart,
   postBotStop,
   type AccountProfileResponse,
   type BotConfig,
+  type BotPosition,
+  type BotStatsResponse,
   type BotStatusResponse,
+  type BotTrade,
 } from "@/lib/api/client";
 
 const DEFAULT_PAPER_CONFIG: BotConfig = {
@@ -46,9 +52,14 @@ const DEFAULT_PAPER_CONFIG: BotConfig = {
   positionSizingMode: "auto",
 };
 
-type DashboardTab = "positions" | "activity" | "config";
+type DashboardTab = "positions" | "trades" | "activity" | "config";
 
 type BotEvent = NonNullable<AccountProfileResponse["botEvents"]>[number];
+type DetailErrors = {
+  positions: string | null;
+  trades: string | null;
+  stats: string | null;
+};
 
 function normalizeError(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -67,6 +78,25 @@ function normalizeError(error: unknown) {
   }
   if (error instanceof Error) return error.message;
   return "Unexpected error. Please try again.";
+}
+
+function normalizeOptionalDataError(resourceName: string, error: unknown) {
+  if (error instanceof ApiClientError) {
+    switch (error.code) {
+      case "BACKEND_REQUEST_FAILED":
+        return `${resourceName} are not available from the bot backend yet.`;
+      case "BACKEND_UNAVAILABLE":
+        return "Bot backend is unavailable right now.";
+      case "BACKEND_TOKEN_MISMATCH":
+        return "Bot backend authentication failed. Check the shared server token.";
+      case "RATE_LIMITED":
+        return `Too many ${resourceName.toLowerCase()} requests right now.`;
+      default:
+        return error.message;
+    }
+  }
+  if (error instanceof Error) return error.message;
+  return `${resourceName} are not available right now.`;
 }
 
 function formatTimestamp(value?: string | null) {
@@ -113,15 +143,71 @@ function getEventTone(type: string) {
 function useDashboardData() {
   const [status, setStatus] = useState<BotStatusResponse | null>(null);
   const [profile, setProfile] = useState<AccountProfileResponse | null>(null);
+  const [trades, setTrades] = useState<BotTrade[]>([]);
+  const [positions, setPositions] = useState<BotPosition[]>([]);
+  const [stats, setStats] = useState<BotStatsResponse | null>(null);
+  const [detailErrors, setDetailErrors] = useState<DetailErrors>({
+    positions: null,
+    trades: null,
+    stats: null,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
-      const [nextStatus, nextProfile] = await Promise.all([getBotStatus(), getAccountProfile()]);
-      setStatus(nextStatus);
-      setProfile(nextProfile);
+      const [statusResult, profileResult, tradesResult, positionsResult, statsResult] = await Promise.allSettled([
+        getBotStatus(),
+        getAccountProfile(),
+        getBotTrades(),
+        getBotPositions(),
+        getBotStats(),
+      ]);
+
+      if (statusResult.status !== "fulfilled") {
+        throw statusResult.reason;
+      }
+      if (profileResult.status !== "fulfilled") {
+        throw profileResult.reason;
+      }
+
+      setStatus(statusResult.value);
+      setProfile(profileResult.value);
       setError(null);
+
+      if (tradesResult.status === "fulfilled") {
+        setTrades(tradesResult.value.trades);
+      } else {
+        setTrades([]);
+      }
+
+      if (positionsResult.status === "fulfilled") {
+        setPositions(positionsResult.value.positions);
+      } else {
+        setPositions([]);
+      }
+
+      if (statsResult.status === "fulfilled") {
+        setStats(statsResult.value.stats);
+      } else {
+        setStats(null);
+      }
+
+      setDetailErrors({
+        trades:
+          tradesResult.status === "rejected"
+            ? normalizeOptionalDataError("Trade details", tradesResult.reason)
+            : null,
+        positions:
+          positionsResult.status === "rejected"
+            ? normalizeOptionalDataError("Position details", positionsResult.reason)
+            : null,
+        stats:
+          statsResult.status === "rejected"
+            ? normalizeOptionalDataError("Trade statistics", statsResult.reason)
+            : null,
+      });
     } catch (err) {
       setError(normalizeError(err));
     } finally {
@@ -147,7 +233,7 @@ function useDashboardData() {
     return () => window.clearInterval(interval);
   }, [lifecycleState, refresh]);
 
-  return { status, profile, loading, error, refresh };
+  return { status, profile, trades, positions, stats, detailErrors, loading, error, refresh };
 }
 
 export default function DashboardPage() {
@@ -155,7 +241,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("positions");
   const [botLoading, setBotLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const { status, profile, loading, error, refresh } = useDashboardData();
+  const { status, profile, trades, positions, stats, detailErrors, loading, error, refresh } = useDashboardData();
 
   const lifecycleState = status?.lifecycleState ?? profile?.botLifecycleState ?? "stopped";
   const botRunning = Boolean(status?.running);
@@ -164,6 +250,8 @@ export default function DashboardPage() {
   const positionsCount = status?.positions ?? 0;
   const marketsTracked = status?.marketsTracked ?? 0;
   const totalPnl = status?.totalPnl ?? 0;
+  const totalTrades = stats?.totalTrades;
+  const winRate = stats?.winRate;
   const balanceUsdc = status?.balanceUsdc ?? profile?.botConfig?.paperBalanceUsdc ?? 0;
   const avgLatency = status?.latency?.avg;
   const p95Latency = status?.latency?.p95;
@@ -221,17 +309,19 @@ export default function DashboardPage() {
         positive: totalPnl >= 0,
       },
       {
-        label: "Tracked Markets",
-        value: `${marketsTracked}`,
+        label: "Trade Stats",
+        value: totalTrades !== null && totalTrades !== undefined ? `${totalTrades}` : "n/a",
         sub:
-          typeof avgLatency === "number" && typeof p95Latency === "number"
-            ? `Latency ${avgLatency}ms avg / ${p95Latency}ms p95`
-            : "Latency stats not available yet",
+          typeof winRate === "number"
+            ? `${winRate.toFixed(1)}% win rate`
+            : typeof avgLatency === "number" && typeof p95Latency === "number"
+              ? `Latency ${avgLatency}ms avg / ${p95Latency}ms p95`
+              : "Trade stats not available yet",
         icon: Target,
         positive: true,
       },
     ],
-    [avgLatency, balanceUsdc, lifecycleState, marketsTracked, p95Latency, positionsCount, status?.startedAt, totalPnl, tradingMode]
+    [avgLatency, balanceUsdc, lifecycleState, p95Latency, positionsCount, status?.startedAt, totalPnl, totalTrades, tradingMode, winRate]
   );
 
   return (
@@ -457,13 +547,33 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
+
+            <div className="mt-4 grid md:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Total trades</p>
+                <p className="text-white font-mono text-sm">
+                  {totalTrades !== null && totalTrades !== undefined ? totalTrades : "Not available"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Win rate</p>
+                <p className="text-white font-mono text-sm">
+                  {typeof winRate === "number" ? `${winRate.toFixed(1)}%` : "Not available"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Markets tracked</p>
+                <p className="text-white font-mono text-sm">{marketsTracked}</p>
+              </div>
+            </div>
           </div>
 
           <div className="card-glass rounded-2xl overflow-hidden">
             <div className="flex border-b border-white/5">
               {(
                 [
-                  { key: "positions", label: "Open Positions", count: positionsCount },
+                  { key: "positions", label: "Open Positions", count: positions.length || positionsCount },
+                  { key: "trades", label: "Recent Trades", count: trades.length || totalTrades || 0 },
                   { key: "activity", label: "Bot Activity", count: botEvents.length },
                   { key: "config", label: "Saved Config", count: 1 },
                 ] as const
@@ -492,27 +602,123 @@ export default function DashboardPage() {
             <div className="p-6">
               {activeTab === "positions" ? (
                 <div className="space-y-4">
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Open positions</p>
-                      <p className="text-3xl font-mono text-white">{positionsCount}</p>
+                  {positions.length ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
+                            <th className="text-left px-4 py-3">Market</th>
+                            <th className="text-left px-4 py-3">Side</th>
+                            <th className="text-right px-4 py-3">Size</th>
+                            <th className="text-right px-4 py-3">Entry</th>
+                            <th className="text-right px-4 py-3">Current</th>
+                            <th className="text-right px-4 py-3">Unrealized P&amp;L</th>
+                            <th className="text-left px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {positions.map((position) => (
+                            <tr key={position.id} className="border-b border-white/3 hover:bg-white/2 transition-colors">
+                              <td className="px-4 py-4 text-sm text-white max-w-[280px] truncate">{position.market}</td>
+                              <td className="px-4 py-4 text-sm text-slate-300 font-mono">{position.side}</td>
+                              <td className="px-4 py-4 text-right text-sm text-slate-300 font-mono">
+                                {position.size ?? "n/a"}
+                              </td>
+                              <td className="px-4 py-4 text-right text-sm text-slate-400 font-mono">
+                                {typeof position.entryPrice === "number" ? `$${position.entryPrice.toFixed(3)}` : "n/a"}
+                              </td>
+                              <td className="px-4 py-4 text-right text-sm text-white font-mono">
+                                {typeof position.currentPrice === "number" ? `$${position.currentPrice.toFixed(3)}` : "n/a"}
+                              </td>
+                              <td
+                                className={`px-4 py-4 text-right text-sm font-mono ${
+                                  typeof position.unrealizedPnl === "number" && position.unrealizedPnl < 0
+                                    ? "text-red-400"
+                                    : "text-brand-300"
+                                }`}
+                              >
+                                {typeof position.unrealizedPnl === "number"
+                                  ? `${position.unrealizedPnl >= 0 ? "+" : ""}$${position.unrealizedPnl.toFixed(2)}`
+                                  : "n/a"}
+                              </td>
+                              <td className="px-4 py-4 text-xs text-slate-400 font-mono">
+                                {position.status || position.strategy || "open"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Tracked markets</p>
-                      <p className="text-3xl font-mono text-white">{marketsTracked}</p>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
+                      {detailErrors.positions
+                        ? detailErrors.positions
+                        : positionsCount > 0
+                          ? "The backend reports open positions, but it is not returning detailed position rows yet."
+                          : "No open positions are currently reported for this account."}
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                      <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Realtime feed</p>
-                      <p className={`text-3xl font-mono ${status?.ws?.connected ? "text-brand-300" : "text-slate-300"}`}>
-                        {status?.ws?.connected ? "ON" : "OFF"}
-                      </p>
-                    </div>
-                  </div>
+                  )}
+                </div>
+              ) : null}
 
-                  <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
-                    Detailed position rows are not exposed by the authenticated backend yet. This dashboard now shows only
-                    real per-user counts and status, so you are no longer seeing demo positions or fake trades.
-                  </div>
+              {activeTab === "trades" ? (
+                <div className="space-y-4">
+                  {trades.length ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
+                            <th className="text-left px-4 py-3">Time</th>
+                            <th className="text-left px-4 py-3">Market</th>
+                            <th className="text-left px-4 py-3">Action</th>
+                            <th className="text-left px-4 py-3">Side</th>
+                            <th className="text-right px-4 py-3">Price</th>
+                            <th className="text-right px-4 py-3">Size</th>
+                            <th className="text-right px-4 py-3">P&amp;L</th>
+                            <th className="text-left px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {trades.map((trade) => (
+                            <tr key={trade.id} className="border-b border-white/3 hover:bg-white/2 transition-colors">
+                              <td className="px-4 py-4 text-sm text-slate-400 font-mono">
+                                {trade.timestamp ? formatTimestamp(trade.timestamp) : "n/a"}
+                              </td>
+                              <td className="px-4 py-4 text-sm text-white max-w-[280px] truncate">{trade.market}</td>
+                              <td className="px-4 py-4 text-sm text-slate-300 font-mono">{trade.action}</td>
+                              <td className="px-4 py-4 text-sm text-slate-300 font-mono">{trade.side}</td>
+                              <td className="px-4 py-4 text-right text-sm text-slate-300 font-mono">
+                                {typeof trade.price === "number" ? `$${trade.price.toFixed(3)}` : "n/a"}
+                              </td>
+                              <td className="px-4 py-4 text-right text-sm text-slate-300 font-mono">
+                                {trade.size ?? "n/a"}
+                              </td>
+                              <td
+                                className={`px-4 py-4 text-right text-sm font-mono ${
+                                  typeof trade.pnl === "number" && trade.pnl < 0 ? "text-red-400" : "text-brand-300"
+                                }`}
+                              >
+                                {typeof trade.pnl === "number"
+                                  ? `${trade.pnl >= 0 ? "+" : ""}$${trade.pnl.toFixed(2)}`
+                                  : "n/a"}
+                              </td>
+                              <td className="px-4 py-4 text-xs text-slate-400 font-mono">
+                                {trade.status || trade.strategy || "completed"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
+                      {detailErrors.trades
+                        ? detailErrors.trades
+                        : totalTrades && totalTrades > 0
+                          ? "The backend reports trades, but it is not returning detailed trade rows yet."
+                          : "No recent trades are currently reported for this account."}
+                    </div>
+                  )}
                 </div>
               ) : null}
 

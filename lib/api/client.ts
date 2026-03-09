@@ -128,6 +128,44 @@ export type BotStatusResponse = {
   backendAvailable?: boolean;
 };
 
+export type BotTrade = {
+  id: string;
+  market: string;
+  side: string;
+  action: string;
+  price: number | null;
+  size: number | null;
+  pnl: number | null;
+  strategy: string | null;
+  status: string | null;
+  timestamp: string | null;
+  latencyMs: number | null;
+};
+
+export type BotPosition = {
+  id: string;
+  market: string;
+  side: string;
+  size: number | null;
+  entryPrice: number | null;
+  currentPrice: number | null;
+  realizedPnl: number | null;
+  unrealizedPnl: number | null;
+  strategy: string | null;
+  status: string | null;
+  openedAt: string | null;
+  updatedAt: string | null;
+};
+
+export type BotStatsResponse = {
+  totalTrades: number | null;
+  openPositions: number | null;
+  realizedPnl: number | null;
+  unrealizedPnl: number | null;
+  winRate: number | null;
+  fillRate: number | null;
+};
+
 export type AccountConfigResponse = {
   config: BotConfig;
   liveModeEligible?: boolean;
@@ -294,4 +332,16 @@ export async function postBotStop() {
 
 export async function getBotStatus() {
   return requestJson<BotStatusResponse>("GET", "/api/bot/status", undefined, true);
+}
+
+export async function getBotTrades() {
+  return requestJson<{ trades: BotTrade[] }>("GET", "/api/bot/trades", undefined, true);
+}
+
+export async function getBotPositions() {
+  return requestJson<{ positions: BotPosition[] }>("GET", "/api/bot/positions", undefined, true);
+}
+
+export async function getBotStats() {
+  return requestJson<{ stats: BotStatsResponse }>("GET", "/api/bot/stats", undefined, true);
 }
