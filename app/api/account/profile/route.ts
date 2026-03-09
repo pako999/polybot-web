@@ -17,5 +17,6 @@ export async function GET() {
     liveModeAcknowledgedAt: state.liveModeAcknowledgedAt,
     liveModeEligible: isLiveModeEligible(state),
     botConfig: state.botConfig,
+    botEvents: state.botEvents,
   });
 }

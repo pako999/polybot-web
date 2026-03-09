@@ -71,6 +71,11 @@ export type AccountProfileResponse = {
   liveModeAcknowledgedAt?: string | null;
   liveModeEligible?: boolean;
   botConfig?: BotConfig;
+  botEvents?: Array<{
+    at: string;
+    type: string;
+    message: string;
+  }>;
 };
 
 export type BotConfig = {
