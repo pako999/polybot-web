@@ -18,14 +18,20 @@ function buildCsp() {
   }
 
   const isDev = process.env.NODE_ENV === "development";
-  const connectSrc = [
-    "'self'",
-    "https://polybot.uk",
-    "https://www.polybot.uk",
+  const clerkHosts = [
     "https://clerk.com",
     "https://*.clerk.com",
     "https://*.clerk.accounts.dev",
     "https://*.clerk.dev",
+    "https://clerk.polybot.uk",
+    "https://accounts.polybot.uk",
+  ];
+  const captchaHosts = ["https://challenges.cloudflare.com"];
+  const connectSrc = [
+    "'self'",
+    "https://polybot.uk",
+    "https://www.polybot.uk",
+    ...clerkHosts,
     "https://bot.polybot.uk",
     ...(isDev ? ["http://localhost:8899", "ws://localhost:8899", "http://127.0.0.1:8899"] : []),
   ].join(" ");
@@ -38,11 +44,11 @@ function buildCsp() {
     "img-src 'self' data: https:",
     "font-src 'self' https://fonts.gstatic.com data:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: ${[...clerkHosts, ...captchaHosts].join(" ")}`,
     "worker-src 'self' blob:",
     `connect-src ${connectSrc}`,
-    "frame-src https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
-    "form-action 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
+    `frame-src ${[...clerkHosts, ...captchaHosts].join(" ")}`,
+    `form-action 'self' ${clerkHosts.join(" ")}`,
   ];
 
   if (!isDev) {
