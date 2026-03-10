@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendBotEventForUser,
+  BOT_STRATEGY_IDS,
   DEFAULT_BOT_CONFIG,
   getAccountStateForUser,
   isLiveModeEligible,
   requireAuthenticatedUserId,
   updateBotConfigForUser,
+  type BotStrategyId,
   type BotUserConfig,
 } from "@/lib/server/account-state";
 import { isCrossSiteRequest } from "@/lib/server/security";
@@ -19,6 +21,7 @@ type ConfigPayload = {
   minMarketVolume?: unknown;
   minMarketLiquidity?: unknown;
   positionSizingMode?: unknown;
+  enabledStrategies?: unknown;
 };
 
 function toPositiveNumber(value: unknown, fallback: number) {
@@ -35,16 +38,29 @@ function toUnitInterval(value: unknown, fallback: number) {
   return value;
 }
 
-function normalizeConfig(payload: ConfigPayload): BotUserConfig {
+function parseEnabledStrategies(value: unknown): BotStrategyId[] {
+  if (!Array.isArray(value)) return DEFAULT_BOT_CONFIG.enabledStrategies ?? [...BOT_STRATEGY_IDS];
+  const valid = value.filter(
+    (v): v is BotStrategyId => typeof v === "string" && BOT_STRATEGY_IDS.includes(v as BotStrategyId)
+  );
+  return valid.length > 0 ? valid : DEFAULT_BOT_CONFIG.enabledStrategies ?? [...BOT_STRATEGY_IDS];
+}
+
+function normalizeConfig(payload: ConfigPayload, current?: BotUserConfig): BotUserConfig {
+  const c = current ?? DEFAULT_BOT_CONFIG;
   return {
-    paperTrade: typeof payload.paperTrade === "boolean" ? payload.paperTrade : DEFAULT_BOT_CONFIG.paperTrade,
-    paperBalanceUsdc: toPositiveNumber(payload.paperBalanceUsdc, DEFAULT_BOT_CONFIG.paperBalanceUsdc),
-    maxPositionUsdc: toPositiveNumber(payload.maxPositionUsdc, DEFAULT_BOT_CONFIG.maxPositionUsdc),
-    maxExposureUsdc: toPositiveNumber(payload.maxExposureUsdc, DEFAULT_BOT_CONFIG.maxExposureUsdc),
-    kellyFraction: toUnitInterval(payload.kellyFraction, DEFAULT_BOT_CONFIG.kellyFraction),
-    minMarketVolume: toPositiveNumber(payload.minMarketVolume, DEFAULT_BOT_CONFIG.minMarketVolume),
-    minMarketLiquidity: toPositiveNumber(payload.minMarketLiquidity, DEFAULT_BOT_CONFIG.minMarketLiquidity),
-    positionSizingMode: payload.positionSizingMode === "manual" ? "manual" : "auto",
+    paperTrade: typeof payload.paperTrade === "boolean" ? payload.paperTrade : c.paperTrade,
+    paperBalanceUsdc: toPositiveNumber(payload.paperBalanceUsdc, c.paperBalanceUsdc),
+    maxPositionUsdc: toPositiveNumber(payload.maxPositionUsdc, c.maxPositionUsdc),
+    maxExposureUsdc: toPositiveNumber(payload.maxExposureUsdc, c.maxExposureUsdc),
+    kellyFraction: toUnitInterval(payload.kellyFraction, c.kellyFraction),
+    minMarketVolume: toPositiveNumber(payload.minMarketVolume, c.minMarketVolume),
+    minMarketLiquidity: toPositiveNumber(payload.minMarketLiquidity, c.minMarketLiquidity),
+    positionSizingMode: payload.positionSizingMode === "manual" ? "manual" : c.positionSizingMode,
+    enabledStrategies:
+      payload.enabledStrategies !== undefined
+        ? parseEnabledStrategies(payload.enabledStrategies)
+        : (c.enabledStrategies ?? DEFAULT_BOT_CONFIG.enabledStrategies),
   };
 }
 
@@ -79,8 +95,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body.", code: "INVALID_JSON" }, { status: 400 });
   }
 
-  const config = normalizeConfig(payload);
   const currentState = await getAccountStateForUser(userId);
+  const config = normalizeConfig(payload, currentState.botConfig);
   if (!config.paperTrade && !isLiveModeEligible(currentState)) {
     return NextResponse.json(
       { error: "Complete live mode checks before enabling live trading.", code: "LIVE_MODE_NOT_READY" },

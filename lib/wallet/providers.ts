@@ -36,16 +36,18 @@ function getInjectedProviders(): Eip1193Provider[] {
   if (typeof window === "undefined") return [];
 
   const providers: Eip1193Provider[] = [];
+
+  // Phantom (EVM) - check first so it's detected when user has only Phantom
+  if (window.phantom?.ethereum) {
+    providers.push(window.phantom.ethereum);
+  }
+
   if (window.ethereum?.providers && Array.isArray(window.ethereum.providers)) {
     providers.push(...window.ethereum.providers);
   }
 
   if (window.ethereum) {
     providers.push(window.ethereum);
-  }
-
-  if (window.phantom?.ethereum) {
-    providers.push(window.phantom.ethereum);
   }
 
   return uniqueProviders(providers);
@@ -61,6 +63,9 @@ export function getWalletOptions(): WalletOption[] {
 
   const options: WalletOption[] = [];
 
+  const phantom = pickProviderByFlag(providers, "isPhantom") || window.phantom?.ethereum;
+  if (phantom) options.push({ id: "phantom", label: "Phantom (EVM)", provider: phantom });
+
   const metamask = pickProviderByFlag(providers, "isMetaMask");
   if (metamask) options.push({ id: "metamask", label: "MetaMask", provider: metamask });
 
@@ -72,9 +77,6 @@ export function getWalletOptions(): WalletOption[] {
 
   const brave = pickProviderByFlag(providers, "isBraveWallet");
   if (brave) options.push({ id: "brave", label: "Brave Wallet", provider: brave });
-
-  const phantom = pickProviderByFlag(providers, "isPhantom") || window.phantom?.ethereum;
-  if (phantom) options.push({ id: "phantom", label: "Phantom (EVM)", provider: phantom });
 
   if (!options.length && providers[0]) {
     options.push({ id: "injected", label: "Injected Wallet", provider: providers[0] });

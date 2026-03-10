@@ -29,6 +29,7 @@ import {
   getBotStatus,
   getBotStats,
   getBotTrades,
+  getCachedWalletAddress,
   postBotStart,
   postBotStop,
   type AccountProfileResponse,
@@ -255,7 +256,8 @@ export default function DashboardPage() {
   const balanceUsdc = status?.balanceUsdc ?? profile?.botConfig?.paperBalanceUsdc ?? 0;
   const avgLatency = status?.latency?.avg;
   const p95Latency = status?.latency?.p95;
-  const walletAddress = profile?.walletAddress || "Not connected";
+  const walletAddress =
+    profile?.walletAddress || status?.walletAddress || getCachedWalletAddress() || "Not connected";
   const botEvents = profile?.botEvents ?? [];
   const botConfig = profile?.botConfig ?? DEFAULT_PAPER_CONFIG;
 

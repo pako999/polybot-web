@@ -17,6 +17,19 @@ export type BotEvent = {
   message: string;
 };
 
+/** Strategy IDs that match the bot backend (polybot-trading) */
+export const BOT_STRATEGY_IDS = [
+  "arbitrage",
+  "convergence",
+  "multi_arb",
+  "liquidity_snipe",
+  "hedging",
+  "momentum",
+  "news_driven",
+] as const;
+
+export type BotStrategyId = (typeof BOT_STRATEGY_IDS)[number];
+
 export type BotUserConfig = {
   paperTrade: boolean;
   paperBalanceUsdc: number;
@@ -26,6 +39,8 @@ export type BotUserConfig = {
   minMarketVolume: number;
   minMarketLiquidity: number;
   positionSizingMode: PositionSizingMode;
+  /** Enabled strategy IDs; must match bot backend. Default: all enabled. */
+  enabledStrategies?: BotStrategyId[];
 };
 
 export type AccountState = {
@@ -58,6 +73,7 @@ export const DEFAULT_BOT_CONFIG: BotUserConfig = {
   minMarketVolume: 1000,
   minMarketLiquidity: 1000,
   positionSizingMode: "auto",
+  enabledStrategies: [...BOT_STRATEGY_IDS],
 };
 
 const DEFAULT_ACCOUNT_STATE: AccountState = {
@@ -84,6 +100,14 @@ function asUnitInterval(value: unknown, fallback: number) {
   return value;
 }
 
+function parseEnabledStrategies(value: unknown): BotStrategyId[] {
+  if (!Array.isArray(value)) return DEFAULT_BOT_CONFIG.enabledStrategies ?? [...BOT_STRATEGY_IDS];
+  const valid = value.filter(
+    (v): v is BotStrategyId => typeof v === "string" && BOT_STRATEGY_IDS.includes(v as BotStrategyId)
+  );
+  return valid.length > 0 ? valid : DEFAULT_BOT_CONFIG.enabledStrategies ?? [...BOT_STRATEGY_IDS];
+}
+
 function parseBotConfig(value: unknown): BotUserConfig {
   if (!value || typeof value !== "object") {
     return DEFAULT_BOT_CONFIG;
@@ -102,6 +126,7 @@ function parseBotConfig(value: unknown): BotUserConfig {
     minMarketVolume: asPositiveNumber(candidate.minMarketVolume, DEFAULT_BOT_CONFIG.minMarketVolume),
     minMarketLiquidity: asPositiveNumber(candidate.minMarketLiquidity, DEFAULT_BOT_CONFIG.minMarketLiquidity),
     positionSizingMode,
+    enabledStrategies: parseEnabledStrategies(candidate.enabledStrategies),
   };
 }
 

@@ -78,6 +78,15 @@ export type AccountProfileResponse = {
   }>;
 };
 
+export type BotStrategyId =
+  | "arbitrage"
+  | "convergence"
+  | "multi_arb"
+  | "liquidity_snipe"
+  | "hedging"
+  | "momentum"
+  | "news_driven";
+
 export type BotConfig = {
   maxPositionUsdc: number;
   maxExposureUsdc: number;
@@ -90,6 +99,8 @@ export type BotConfig = {
   paperTrade: boolean;
   /** "auto" = Kelly-based sizing, "manual" = fixed max per trade */
   positionSizingMode?: "auto" | "manual";
+  /** Enabled strategy IDs; must match bot backend. */
+  enabledStrategies?: BotStrategyId[];
 };
 
 export type BotStartRequest = {
