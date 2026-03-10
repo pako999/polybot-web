@@ -287,43 +287,66 @@ export default function DashboardPage() {
     }
   }, [botRunning, refresh, startConfig]);
 
+  const realizedPnl = stats?.realizedPnl ?? 0;
+  const unrealizedPnl = stats?.unrealizedPnl ?? totalPnl - realizedPnl;
+
   const statCards = useMemo(
     () => [
       {
-        label: "Lifecycle",
-        value: lifecycleState.toUpperCase(),
-        sub: status?.startedAt ? `Started ${formatTimestamp(status.startedAt)}` : "No active run timestamp yet",
-        icon: Activity,
-        positive: lifecycleState === "running" || lifecycleState === "starting",
-      },
-      {
         label: tradingMode ? "Paper Balance" : "Live Balance",
         value: `$${balanceUsdc.toFixed(2)}`,
-        sub: tradingMode ? "Virtual funds only" : "Connected live balance",
+        sub: tradingMode ? "Virtual funds" : "Connected wallet",
         icon: DollarSign,
         positive: true,
       },
       {
         label: "Total P&L",
         value: `${totalPnl >= 0 ? "+" : ""}$${totalPnl.toFixed(2)}`,
-        sub: `${positionsCount} open positions`,
+        sub: `${positionsCount} positions`,
         icon: TrendingUp,
         positive: totalPnl >= 0,
       },
       {
-        label: "Trade Stats",
-        value: totalTrades !== null && totalTrades !== undefined ? `${totalTrades}` : "n/a",
-        sub:
-          typeof winRate === "number"
-            ? `${winRate.toFixed(1)}% win rate`
-            : typeof avgLatency === "number" && typeof p95Latency === "number"
-              ? `Latency ${avgLatency}ms avg / ${p95Latency}ms p95`
-              : "Trade stats not available yet",
+        label: "Realized P&L",
+        value: `${realizedPnl >= 0 ? "+" : ""}$${realizedPnl.toFixed(2)}`,
+        sub: "Closed trades",
+        icon: BarChart3,
+        positive: realizedPnl >= 0,
+      },
+      {
+        label: "Unrealized P&L",
+        value: `${unrealizedPnl >= 0 ? "+" : ""}$${unrealizedPnl.toFixed(2)}`,
+        sub: "Open positions",
         icon: Target,
-        positive: true,
+        positive: unrealizedPnl >= 0,
+      },
+      {
+        label: "Win Rate",
+        value: typeof winRate === "number" ? `${winRate.toFixed(1)}%` : "—",
+        sub: `${totalTrades ?? 0} trades`,
+        icon: Zap,
+        positive: (winRate ?? 0) >= 50,
+      },
+      {
+        label: "Lifecycle",
+        value: lifecycleState.toUpperCase(),
+        sub: status?.startedAt ? formatTimestamp(status.startedAt) : "Not started",
+        icon: Activity,
+        positive: lifecycleState === "running" || lifecycleState === "starting",
       },
     ],
-    [avgLatency, balanceUsdc, lifecycleState, p95Latency, positionsCount, status?.startedAt, totalPnl, totalTrades, tradingMode, winRate]
+    [
+      balanceUsdc,
+      lifecycleState,
+      positionsCount,
+      realizedPnl,
+      status?.startedAt,
+      totalPnl,
+      totalTrades,
+      tradingMode,
+      unrealizedPnl,
+      winRate,
+    ]
   );
 
   return (
@@ -480,97 +503,62 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {statCards.map((stat) => (
-              <div key={stat.label} className="card-glass rounded-xl p-5 transition-all duration-300">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider">{stat.label}</span>
-                  <stat.icon className="w-4 h-4 text-slate-600" />
-                </div>
+          <section aria-label="360 overview" className="space-y-4">
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+              Portfolio Overview
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {statCards.map((stat) => (
                 <div
-                  className={`text-2xl font-bold ${stat.positive ? "text-white" : "text-red-400"}`}
-                  style={{ fontFamily: "var(--font-mono)" }}
+                  key={stat.label}
+                  className="card-glass rounded-xl p-4 transition-all duration-300 hover:border-white/10"
                 >
-                  {stat.value}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">
+                      {stat.label}
+                    </span>
+                    <stat.icon className="w-3.5 h-3.5 text-slate-600" />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums ${stat.positive ? "text-white" : "text-red-400"}`}
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div className="text-[11px] mt-0.5 text-slate-500 truncate">{stat.sub}</div>
                 </div>
-                <div
-                  className={`text-xs mt-1 ${stat.positive ? "text-brand-400" : "text-red-400"}`}
-                  style={{ fontFamily: "var(--font-mono)" }}
-                >
-                  {stat.sub}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="card-glass rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-base font-semibold text-white" style={{ fontFamily: "var(--font-display)" }}>
-                  Live Bot Overview
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Real authenticated bot status for your current account. No demo data.
-                </p>
-              </div>
-              <div className="text-xs font-mono text-slate-500">
-                {status?.startedAt ? `Run started ${formatTimestamp(status.startedAt)}` : "No confirmed run yet"}
-              </div>
+              ))}
             </div>
+          </section>
 
-            <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Wallet</p>
-                <p className="text-white font-mono break-all text-sm">{walletAddress}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Execution Mode</p>
-                <p className="text-white font-mono text-sm">{tradingMode ? "PAPER" : "LIVE"}</p>
-                <p className="text-xs text-slate-500 mt-2">
-                  Position sizing: {botConfig.positionSizingMode === "manual" ? "Manual per trade" : "Auto Kelly"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Latency</p>
-                <p className="text-white font-mono text-sm">
-                  {typeof avgLatency === "number" ? `${avgLatency}ms avg` : "Not reported yet"}
-                </p>
-                <p className="text-xs text-slate-500 mt-2">
-                  {typeof p95Latency === "number" ? `${p95Latency}ms p95` : "Waiting for samples"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Backend Link</p>
-                <p className={`font-mono text-sm ${backendHealthy ? "text-brand-300" : "text-red-300"}`}>
-                  {backendHealthy ? "CONNECTED" : "NOT AVAILABLE"}
-                </p>
-                <p className="text-xs text-slate-500 mt-2">
-                  {status?.ws?.connected ? "Realtime feed connected" : "Realtime feed not reported"}
-                </p>
-              </div>
+          <section className="rounded-xl border border-white/10 bg-black/20 p-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <div>
+              <span className="text-slate-500">Wallet </span>
+              <span className="text-white font-mono break-all">{walletAddress}</span>
             </div>
-
-            <div className="mt-4 grid md:grid-cols-3 gap-4">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Total trades</p>
-                <p className="text-white font-mono text-sm">
-                  {totalTrades !== null && totalTrades !== undefined ? totalTrades : "Not available"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Win rate</p>
-                <p className="text-white font-mono text-sm">
-                  {typeof winRate === "number" ? `${winRate.toFixed(1)}%` : "Not available"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Markets tracked</p>
-                <p className="text-white font-mono text-sm">{marketsTracked}</p>
-              </div>
+            <div>
+              <span className="text-slate-500">Mode </span>
+              <span className="text-white font-mono">{tradingMode ? "PAPER" : "LIVE"}</span>
             </div>
-          </div>
+            <div>
+              <span className="text-slate-500">Latency </span>
+              <span className="text-white font-mono">
+                {typeof avgLatency === "number" ? `${avgLatency}ms` : "—"}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500">Markets </span>
+              <span className="text-white font-mono">{marketsTracked}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">Backend </span>
+              <span className={backendHealthy ? "text-brand-400 font-mono" : "text-red-400 font-mono"}>
+                {backendHealthy ? "Connected" : "Offline"}
+              </span>
+            </div>
+          </section>
 
-          <div className="card-glass rounded-2xl overflow-hidden">
+          <section className="card-glass rounded-2xl overflow-hidden" aria-label="Positions and trades">
             <div className="flex border-b border-white/5">
               {(
                 [
@@ -609,7 +597,7 @@ export default function DashboardPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
-                            <th className="text-left px-4 py-3">What</th>
+                            <th className="text-left px-4 py-3">Market</th>
                             <th className="text-left px-4 py-3">Side</th>
                             <th className="text-right px-4 py-3">Size</th>
                             <th className="text-right px-4 py-3">Entry</th>
@@ -800,7 +788,7 @@ export default function DashboardPage() {
                 </div>
               ) : null}
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
