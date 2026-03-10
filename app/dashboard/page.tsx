@@ -609,7 +609,7 @@ export default function DashboardPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
-                            <th className="text-left px-4 py-3">Market</th>
+                            <th className="text-left px-4 py-3">What</th>
                             <th className="text-left px-4 py-3">Side</th>
                             <th className="text-right px-4 py-3">Size</th>
                             <th className="text-right px-4 py-3">Entry</th>
@@ -621,7 +621,13 @@ export default function DashboardPage() {
                         <tbody>
                           {positions.map((position) => (
                             <tr key={position.id} className="border-b border-white/3 hover:bg-white/2 transition-colors">
-                              <td className="px-4 py-4 text-sm text-white max-w-[280px] truncate">{position.market}</td>
+                              <td className="px-4 py-4 text-sm text-white max-w-[320px]">
+                                <span className="block truncate" title={position.question || position.market}>
+                                  {position.question
+                                    ? `${position.question}${position.outcome ? ` (${position.outcome})` : ""}`
+                                    : position.market}
+                                </span>
+                              </td>
                               <td className="px-4 py-4 text-sm text-slate-300 font-mono">{position.side}</td>
                               <td className="px-4 py-4 text-right text-sm text-slate-300 font-mono">
                                 {position.size ?? "n/a"}

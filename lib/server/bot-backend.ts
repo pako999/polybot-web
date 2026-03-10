@@ -82,13 +82,15 @@ export type InternalBotTrade = {
   latency_ms?: number;
 };
 
-/** Backend positions shape: token_id, size, avg_price, last_price, updated_at */
+/** Backend positions shape: token_id, size, avg_price, last_price, updated_at, question, outcome */
 export type InternalBotPosition = {
   token_id?: string;
   size?: number;
   avg_price?: number;
   last_price?: number;
   updated_at?: number;
+  question?: string;
+  outcome?: string;
   /** Legacy/alternate fields */
   id?: string;
   position_id?: string;

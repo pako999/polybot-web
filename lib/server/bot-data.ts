@@ -27,6 +27,10 @@ export type BotPositionResponseItem = {
   status: string | null;
   openedAt: string | null;
   updatedAt: string | null;
+  /** Human-readable: market question (e.g. "Will X happen?") */
+  question: string | null;
+  /** Outcome: YES or No */
+  outcome: string | null;
 };
 
 export type BotStatsResponseData = {
@@ -104,6 +108,8 @@ export function normalizePositions(
       status: asString(position.status),
       openedAt: asString(position.opened_at),
       updatedAt,
+      question: asString(position.question),
+      outcome: asString(position.outcome),
     };
   });
 }

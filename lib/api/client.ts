@@ -166,6 +166,10 @@ export type BotPosition = {
   status: string | null;
   openedAt: string | null;
   updatedAt: string | null;
+  /** Human-readable: market question (e.g. "Will X happen?") */
+  question: string | null;
+  /** Outcome: YES or No */
+  outcome: string | null;
 };
 
 export type BotStatsResponse = {
