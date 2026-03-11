@@ -47,7 +47,7 @@ export async function fetchMarketsByTokenIds(
   tokenIds: string[]
 ): Promise<Map<string, { question: string; outcome: string }>> {
   const result = new Map<string, { question: string; outcome: string }>();
-  const unique = [...new Set(tokenIds.filter((id) => id && id.length > 40))];
+  const unique = Array.from(new Set(tokenIds.filter((id) => id && id.length > 40)));
   if (unique.length === 0) return result;
 
   // Gamma API accepts clob_token_ids as query param; multiple values = multiple params
